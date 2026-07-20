@@ -1,0 +1,3582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信息流投放工作台</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/cpexcel.full.min.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        brand: { 50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',300:'#a5b4fc',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca',800:'#3730a3',900:'#312e81' },
+        surface: { 50:'#f8fafc',100:'#f1f5f9',200:'#e2e8f0',300:'#cbd5e1' },
+        success: '#10b981',
+        danger: '#ef4444',
+        warn: '#f59e0b',
+      }
+    }
+  }
+}
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+.tab-active { border-bottom: 2px solid #4f46e5; color: #4f46e5; font-weight: 600; }
+.card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06); }
+.stat-card { transition: transform .15s; }
+.stat-card:hover { transform: translateY(-2px); }
+input[type=range] { -webkit-appearance: none; height: 6px; border-radius: 3px; background: #e2e8f0; outline: none; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #4f46e5; cursor: pointer; }
+.tag { display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 50; display: flex; align-items: center; justify-content: center; }
+.modal-box { background: #fff; border-radius: 16px; padding: 24px; max-width: 560px; width: 90%; max-height: 85vh; overflow-y: auto; }
+canvas { max-width: 100%; }
+.btn-sm { padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; }
+.btn-primary { background: #4f46e5; color: #fff; border: none; }
+.btn-primary:hover { background: #4338ca; }
+.btn-outline { background: #fff; color: #4f46e5; border: 1px solid #c7d2fe; }
+.btn-outline:hover { background: #eef2ff; }
+.btn-danger { background: #fff; color: #ef4444; border: 1px solid #fecaca; }
+.btn-danger:hover { background: #fef2f2; }
+.empty-state { text-align: center; padding: 48px 16px; color: #94a3b8; }
+.input-field { width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 13px; outline: none; transition: border .15s; }
+.input-field:focus { border-color: #a5b4fc; box-shadow: 0 0 0 2px rgba(99,102,241,.15); }
+/* Toast 提示 */
+.toast-container { position: fixed; top: 20px; right: 20px; z-index: 70; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast-item { padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 500; color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.15); pointer-events: auto; animation: toastIn .3s ease; max-width: 360px; }
+.toast-success { background: #10b981; }
+.toast-error { background: #ef4444; }
+.toast-warn { background: #f59e0b; color: #1a1a1a; }
+.toast-info { background: #4f46e5; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toastOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-12px); } }
+/* 确认弹窗 */
+.confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 55; display: flex; align-items: center; justify-content: center; }
+.confirm-box { background: #fff; border-radius: 16px; padding: 28px; max-width: 400px; width: 88%; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,.15); }
+.confirm-icon { width: 48px; height: 48px; border-radius: 50%; background: #fef2f2; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+.confirm-msg { font-size: 15px; color: #1e293b; margin-bottom: 20px; line-height: 1.5; }
+.confirm-btns { display: flex; gap: 12px; justify-content: center; }
+/* 视频播放器控件 */
+.vp-wrap { position: relative; background: #000; border-radius: 8px; overflow: hidden; }
+.vp-wrap video { width: 100%; display: block; }
+.vp-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.25); cursor: pointer; transition: background .15s; }
+.vp-overlay:hover { background: rgba(0,0,0,.35); }
+.vp-controls { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,.75)); padding: 24px 10px 8px; }
+.vp-bar { width: 100%; height: 4px; background: rgba(255,255,255,.3); border-radius: 2px; cursor: pointer; position: relative; }
+.vp-bar:hover { height: 6px; }
+.vp-bar-fill { height: 100%; background: #818cf8; border-radius: 2px; pointer-events: none; }
+.vp-bar-handle { position: absolute; top: 50%; right: -5px; width: 10px; height: 10px; border-radius: 50%; background: #fff; transform: translateY(-50%); opacity: 0; transition: opacity .15s; pointer-events: none; }
+.vp-bar:hover .vp-bar-handle { opacity: 1; }
+.vp-btns { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+.vp-btn { background: none; border: none; color: #fff; cursor: pointer; padding: 2px 4px; font-size: 11px; opacity: .85; transition: opacity .15s; display: flex; align-items: center; gap: 2px; }
+.vp-btn:hover { opacity: 1; }
+.vp-btn svg { width: 14px; height: 14px; fill: currentColor; }
+.vp-time { color: rgba(255,255,255,.7); font-size: 11px; font-variant-numeric: tabular-nums; min-width: 72px; }
+.vp-speed { background: rgba(255,255,255,.15); border: none; color: #fff; font-size: 11px; padding: 1px 5px; border-radius: 4px; cursor: pointer; }
+.vp-speed:hover { background: rgba(255,255,255,.25); }
+.vp-expand { margin-left: auto; }
+.vp-fullscreen-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.92); display: flex; align-items: center; justify-content: center; }
+.vp-fullscreen-overlay video { max-width: 90vw; max-height: 85vh; border-radius: 8px; }
+.vp-fullscreen-close { position: absolute; top: 16px; right: 20px; background: rgba(255,255,255,.15); border: none; color: #fff; font-size: 20px; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.vp-fullscreen-close:hover { background: rgba(255,255,255,.25); }
+</style>
+</head>
+<body class="bg-surface-50 text-gray-800 min-h-screen">
+
+<!-- Toast 容器 -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- Header -->
+<header class="bg-white border-b border-surface-200 sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+    <h1 class="text-lg font-bold text-gray-900">📊 信息流投放工作台</h1>
+    <div class="relative" style="min-width:260px;">
+      <input id="globalSearch" onkeydown="if(event.key==='Enter')globalSearchExec()" oninput="if(!this.value.trim())closeGlobalSearch()" placeholder="全局搜索：素材/数据/项目..." class="input-field" style="width:100%;padding-left:32px;">
+      <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#9ca3af;font-size:14px;">🔍</span>
+      <div id="globalSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:420px;overflow-y:auto;z-index:60;"></div>
+    </div>
+    <div class="flex gap-1" id="tabBar">
+      <button onclick="switchTab('material')" class="tab-btn px-4 py-2 text-sm rounded-lg hover:bg-surface-100 transition" data-tab="material">素材库</button>
+      <button onclick="switchTab('analytics')" class="tab-btn px-4 py-2 text-sm rounded-lg hover:bg-surface-100 transition" data-tab="analytics">数据分析</button>
+      <button onclick="switchTab('project')" class="tab-btn px-4 py-2 text-sm rounded-lg hover:bg-surface-100 transition" data-tab="project">项目管理</button>
+      <button onclick="switchTab('ocean')" class="tab-btn px-4 py-2 text-sm rounded-lg hover:bg-surface-100 transition" data-tab="ocean">方舟数据</button>
+      <button onclick="switchTab('videomd5')" class="tab-btn px-4 py-2 text-sm rounded-lg hover:bg-surface-100 transition" data-tab="videomd5">视频改码</button>
+      <button onclick="switchTab('more')" class="tab-btn px-4 py-2 text-sm rounded-lg hover:bg-surface-100 transition" data-tab="more">更多</button>
+    </div>
+  </div>
+</header>
+
+<!-- ========== 素材库 ========== -->
+<section id="tab-material" class="tab-panel max-w-7xl mx-auto px-4 py-6">
+  <div class="flex flex-wrap gap-3 items-center mb-4">
+    <button onclick="openFolderModal()" class="btn-sm btn-primary">+ 新建文件夹</button>
+    <button onclick="openVideoDropModal()" class="btn-sm btn-outline">视频导入</button>
+    <select id="matFilterType" onchange="renderMaterials()" class="input-field" style="width:auto">
+      <option value="all">全部类型</option><option value="own">自家素材</option><option value="competitor">竞品素材</option>
+    </select>
+    <input id="matSearch" onkeydown="if(event.key==='Enter')renderMaterials()" oninput="if(!this.value.trim())renderMaterials()" placeholder="搜索名称/标签/备注/项目，回车搜索..." class="input-field" style="width:280px">
+    <span id="matFolderBreadcrumb" class="text-xs text-gray-400"></span>
+  </div>
+  <div id="materialFolders" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mb-4"></div>
+  <div id="materialGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+  <div id="materialEmpty" class="empty-state hidden">
+    <div class="text-4xl mb-2">📁</div>
+    <div>还没有素材，点击上方按钮添加</div>
+  </div>
+</section>
+
+<!-- ========== 数据分析 ========== -->
+<section id="tab-analytics" class="tab-panel hidden">
+  <div class="flex flex-wrap gap-3 items-center mb-4">
+    <button id="anaBatchDeleteBtn" onclick="batchDeleteAnalytics()" class="btn-sm btn-danger hidden">删除选中</button>
+    <span id="anaSelCount" class="text-xs text-brand-600 font-medium hidden"></span>
+    <select id="anaPeriod" onchange="renderAnalytics()" class="input-field" style="width:auto">
+      <option value="0" selected>全部</option><option value="7">近7天</option><option value="14">近14天</option><option value="30">近30天</option><option value="90">近90天</option>
+    </select>
+    <select id="anaPlatform" onchange="renderAnalytics()" class="input-field" style="width:auto">
+      <option value="all">全部平台</option><option>千川</option><option>抖音CID</option><option>磁力金牛</option><option>小红书</option><option>腾讯广告</option><option>其他</option>
+    </select>
+    <input id="anaSearch" oninput="renderAnalytics()" placeholder="搜索素材名称..." class="input-field" style="width:160px">
+  </div>
+  <div id="anaDropZone" class="card border-2 border-dashed border-brand-300 bg-brand-50/40 p-6 mb-6 text-center cursor-pointer transition hover:border-brand-500 hover:bg-brand-50/70">
+    <div class="text-3xl mb-2">📂</div>
+    <div class="font-medium text-gray-700 mb-1">拖入 Excel 文件自动解析</div>
+    <div class="text-xs text-gray-400">支持 .xlsx / .xls / .csv，自动识别列名映射数据</div>
+    <input id="anaFileInput" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleAnaFile(event)">
+  </div>
+  <div id="anaPreview" class="hidden mb-6"></div>
+  <div id="anaEmpty" class="empty-state hidden">
+    <div class="text-4xl mb-2">📈</div>
+    <div>暂无数据，拖入Excel文件开始分析</div>
+  </div>
+  <div id="anaContent" class="hidden">
+    <div class="grid grid-cols-3 gap-4 mb-6" id="anaSummary"></div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      <div class="card p-5"><h3 class="font-semibold text-sm mb-3">消耗 & GMV 趋势</h3><canvas id="anaChart1" height="200"></canvas></div>
+      <div class="card p-5"><h3 class="font-semibold text-sm mb-3">ROI 趋势</h3><canvas id="anaChart2" height="200"></canvas></div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      <div class="card p-5"><h3 class="font-semibold text-sm mb-3">点击率 & 转化率趋势</h3><canvas id="anaChart3" height="200"></canvas></div>
+      <div class="card p-5"><h3 class="font-semibold text-sm mb-3">完播率趋势</h3><canvas id="anaChart4" height="200"></canvas></div>
+    </div>
+    <div class="card p-5">
+      <h3 class="font-semibold text-sm mb-3">素材数据明细</h3>
+      <div class="overflow-auto" style="max-height:500px">
+        <table class="w-full text-sm">
+          <thead style="position:sticky;top:0;z-index:10"><tr class="text-gray-400 border-b" style="background:#fff">
+            <th class="py-2 text-center font-medium w-8" style="background:#fff"><input type="checkbox" id="anaSelAll" onchange="toggleAnaSelectAll(this)"></th>
+            <th class="py-2 text-left font-medium" style="background:#fff">日期</th>
+            <th class="font-medium" style="background:#fff">平台</th>
+            <th class="font-medium" style="background:#fff">素材名称</th>
+            <th class="text-right font-medium" style="background:#fff">消耗</th>
+            <th class="text-right font-medium" style="background:#fff">GMV</th>
+            <th class="text-right font-medium" style="background:#fff">ROI</th>
+            <th class="text-right font-medium" style="background:#fff">展示</th>
+            <th class="text-right font-medium" style="background:#fff">点击</th>
+            <th class="text-right font-medium" style="background:#fff">点击率</th>
+            <th class="text-right font-medium" style="background:#fff">转化数</th>
+            <th class="text-right font-medium" style="background:#fff">转化率</th>
+            <th class="text-right font-medium" style="background:#fff">3s完播率</th>
+            <th class="text-right font-medium" style="background:#fff">完播率</th>
+            <th class="text-right font-medium" style="background:#fff">操作</th>
+          </tr></thead>
+          <tbody id="anaTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 项目管理 ========== -->
+<section id="tab-project" class="tab-panel hidden">
+  <div class="flex flex-wrap gap-3 items-center mb-4">
+    <button onclick="openProjectModal()" class="btn-sm btn-primary">+ 新建项目</button>
+    <input id="projSearch" oninput="renderProjects()" placeholder="搜索项目名称/平台..." class="input-field" style="width:200px">
+  </div>
+  <div id="projectGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+  <div id="projectEmpty" class="empty-state hidden">
+    <div class="text-4xl mb-2">📁</div>
+    <div>还没有项目，点击上方按钮创建</div>
+  </div>
+</section>
+
+<!-- ========== 方舟数据 ========== -->
+<section id="tab-ocean" class="tab-panel hidden">
+  <div id="oceanNotAuth" class="max-w-2xl mx-auto px-4 py-12 text-center">
+    <div class="text-5xl mb-4">🚀</div>
+    <h2 class="text-xl font-bold text-gray-800 mb-2">接入巨量方舟</h2>
+    <p class="text-gray-500 text-sm mb-6">连接巨量引擎开放平台，实时同步广告投放数据到工作台</p>
+    <div class="card p-6 text-left mb-6">
+      <h3 class="font-semibold text-sm mb-3 text-gray-700">功能说明</h3>
+      <ul class="text-xs text-gray-500 space-y-2">
+        <li>- OAuth 2.0 安全授权，无需在页面中暴露密钥</li>
+        <li>- 自动同步账户下广告投放数据（消耗、展示、点击、转化等）</li>
+        <li>- 一键导入到数据分析模块，直接生成趋势图表</li>
+        <li>- 数据支持按日期/平台/素材筛选</li>
+      </ul>
+    </div>
+    <div class="card p-6 text-left mb-6" style="border:1px solid #c7d2fe;background:#eef2ff;">
+      <h3 class="font-semibold text-sm mb-3 text-brand-700">配置步骤</h3>
+      <ol class="text-xs text-gray-600 space-y-2 list-decimal list-inside">
+        <li>注册巨量引擎开放平台开发者（<a href="https://open.oceanengine.com" target="_blank" class="text-brand-600 underline">open.oceanengine.com</a>）</li>
+        <li>创建应用，获取 App ID 和 Secret</li>
+        <li>注册 Cloudflare，部署 Worker 代理（代码已生成）</li>
+        <li>在巨量开放平台配置回调地址为 Worker 的 /callback 路径</li>
+        <li>在下方填入 Worker 地址，点击授权</li>
+      </ol>
+    </div>
+    <div class="flex gap-3 items-center justify-center mb-4">
+      <input id="oceanApiBase" placeholder="Worker地址，如 https://xxx.workers.dev" class="input-field" style="max-width:360px;">
+      <button onclick="saveOceanConfig()" class="btn-sm btn-outline">保存</button>
+    </div>
+    <button onclick="startOceanAuth()" class="btn-sm btn-primary" style="padding:10px 28px;font-size:14px;">🔗 授权连接巨量方舟</button>
+  </div>
+
+  <div id="oceanAuthed" style="display:none;">
+    <div class="flex flex-wrap gap-3 items-center mb-4">
+      <span class="tag bg-green-100 text-green-700">✅ 已授权</span>
+      <select id="oceanAdvertiser" onchange="loadOceanData()" class="input-field" style="width:auto;min-width:200px;">
+        <option value="">选择广告主账户</option>
+      </select>
+      <input id="oceanStartDate" type="date" class="input-field" style="width:auto;">
+      <input id="oceanEndDate" type="date" class="input-field" style="width:auto;">
+      <button onclick="loadOceanData()" class="btn-sm btn-primary">同步数据</button>
+      <button onclick="importOceanToAnalytics()" class="btn-sm btn-outline">导入到数据分析</button>
+      <button onclick="revokeOceanAuth()" class="btn-sm btn-danger">解除授权</button>
+    </div>
+    <div id="oceanSummary" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+    <div id="oceanTableWrap" class="card p-4">
+      <div class="text-sm text-gray-400 mb-3">广告投放数据</div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm" style="border-collapse:collapse;">
+          <thead>
+            <tr style="background:#f8fafc;">
+              <th class="text-left font-medium px-3 py-2">日期</th>
+              <th class="text-left font-medium px-3 py-2">素材/计划名称</th>
+              <th class="text-right font-medium px-3 py-2">消耗</th>
+              <th class="text-right font-medium px-3 py-2">展示</th>
+              <th class="text-right font-medium px-3 py-2">点击</th>
+              <th class="text-right font-medium px-3 py-2">转化</th>
+              <th class="text-right font-medium px-3 py-2">GMV</th>
+              <th class="text-right font-medium px-3 py-2">CTR</th>
+            </tr>
+          </thead>
+          <tbody id="oceanTable"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="oceanEmpty" class="empty-state hidden">
+      <div class="text-4xl mb-2">📊</div>
+      <div>选择广告主账户和日期范围后点击"同步数据"</div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== AI 浮动机器人 ========== -->
+<div id="aiBot" style="position:fixed;z-index:50;width:52px;height:52px;cursor:grab;user-select:none;right:24px;bottom:80px;"
+  onmousedown="startDragBot(event)" ontouchstart="startDragBot(event)" onclick="onBotClick(event)" onmouseenter="showBotTip()" onmouseleave="hideBotTip()">
+  <div id="botBody" style="width:52px;height:52px;border-radius:50%;background:linear-gradient(145deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(99,102,241,.45),inset 0 -2px 6px rgba(0,0,0,.15);position:relative;">
+    <!-- 天线 -->
+    <div style="position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:2px;height:6px;background:#8b5cf6;"></div>
+    <div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);width:6px;height:6px;border-radius:50%;background:#a78bfa;box-shadow:0 0 6px rgba(167,139,250,.8);"></div>
+    <!-- 脸部 SVG -->
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+      <!-- 脸 -->
+      <rect x="6" y="7" width="18" height="16" rx="6" fill="white" opacity="0.95"/>
+      <!-- 眼睛 -->
+      <circle cx="12" cy="15" r="2" fill="#6366f1"/>
+      <circle cx="18" cy="15" r="2" fill="#6366f1"/>
+      <!-- 嘴 -->
+      <path d="M11.5 19 Q15 21.5 18.5 19" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+      <!-- 腮红 -->
+      <circle cx="9.5" cy="18" r="1.5" fill="#f0abfc" opacity="0.6"/>
+      <circle cx="20.5" cy="18" r="1.5" fill="#f0abfc" opacity="0.6"/>
+    </svg>
+    <!-- 脉冲点 -->
+    <div id="botPulse" style="position:absolute;top:0px;right:0px;width:12px;height:12px;border-radius:50%;background:#22c55e;border:2px solid white;box-shadow:0 0 6px rgba(34,197,94,.6);"></div>
+  </div>
+</div>
+
+<!-- 机器人 hover 提示气泡（头顶） -->
+<div id="botTip" style="display:none;opacity:0;position:fixed;z-index:49;max-width:240px;pointer-events:none;transition:opacity .2s ease,transform .2s ease;transform:translateY(6px);">
+  <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:12px;padding:10px 14px;box-shadow:0 8px 24px rgba(99,102,241,.35);position:relative;">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+      <span style="font-size:14px;">✨</span>
+      <span style="font-weight:700;font-size:13px;color:white;">问问我吧</span>
+    </div>
+    <div style="font-size:11px;color:#e0e7ff;line-height:1.7;">
+      <div>- 点击打开AI助手</div>
+      <div>- 爆款脚本拆解 / 会议纪要提取</div>
+      <div>- 拖拽可移动到任意位置</div>
+    </div>
+    <!-- 底部箭头 -->
+    <div style="position:absolute;bottom:-6px;left:50%;width:12px;height:12px;background:#8b5cf6;transform:translateX(-50%) rotate(45deg);border-radius:2px;"></div>
+  </div>
+</div>
+
+<!-- AI 弹窗 -->
+<div id="aiPopup" style="display:none;position:fixed;z-index:51;width:420px;max-width:calc(100vw - 32px);max-height:80vh;background:white;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.18);border:1px solid #e5e7eb;flex-direction:column;overflow:hidden;">
+  <!-- 弹窗头部 -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,#3b82f6,#6366f1);color:white;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:18px;">🤖</span>
+      <span style="font-weight:700;font-size:14px;">AI 助手</span>
+    </div>
+    <button onclick="closeAiPopup()" style="background:none;border:none;color:white;cursor:pointer;font-size:18px;padding:4px;line-height:1;">&times;</button>
+  </div>
+  <!-- 弹窗内容 -->
+  <div style="flex:1;overflow-y:auto;padding:16px;">
+    <!-- API Key -->
+    <div style="margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <span style="font-size:12px;font-weight:600;color:#6b7280;">DeepSeek API 配置</span>
+        <button onclick="toggleAiKeyBox()" style="font-size:11px;color:#3b82f6;background:none;border:none;cursor:pointer;">展开/收起</button>
+      </div>
+      <div id="aiKeyBox" style="display:none;align-items:center;gap:6px;">
+        <input id="aiApiKey" type="password" placeholder="sk-..." style="flex:1;font-size:12px;border:1px solid #d1d5db;border-radius:6px;padding:6px 8px;outline:none;">
+        <button onclick="saveAiKey()" style="font-size:12px;white-space:nowrap;background:#3b82f6;color:white;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;">保存</button>
+        <span id="aiKeyStatus" style="font-size:11px;color:#9ca3af;"></span>
+      </div>
+    </div>
+    <!-- 功能选择 -->
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+      <button onclick="switchAiMode('chat')" id="aiBtnChat" style="font-size:12px;padding:5px 10px;border-radius:6px;cursor:pointer;background:#3b82f6;color:white;border:none;">AI对话</button>
+      <button onclick="switchAiMode('script')" id="aiBtnScript" style="font-size:12px;padding:5px 10px;border-radius:6px;cursor:pointer;background:white;color:#374151;border:1px solid #d1d5db;">爆款脚本拆解</button>
+      <button onclick="switchAiMode('meeting')" id="aiBtnMeeting" style="font-size:12px;padding:5px 10px;border-radius:6px;cursor:pointer;background:white;color:#374151;border:1px solid #d1d5db;">会议纪要提取</button>
+      <button onclick="switchAiMode('custom')" id="aiBtnCustom" style="font-size:12px;padding:5px 10px;border-radius:6px;cursor:pointer;background:white;color:#374151;border:1px solid #d1d5db;">自由分析</button>
+    </div>
+    <!-- 举例说明 -->
+    <div id="aiExamples" style="margin-bottom:12px;"></div>
+    <!-- 输入区 -->
+    <div style="margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <span id="aiInputTitle" style="font-size:12px;font-weight:600;color:#374151;">输入脚本内容</span>
+        <span id="aiCharCount" style="font-size:11px;color:#9ca3af;">0 字</span>
+      </div>
+      <textarea id="aiInput" rows="6" placeholder="在此粘贴脚本、文案或会议纪要内容..." style="width:100%;font-size:13px;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;outline:none;resize:vertical;min-height:100px;box-sizing:border-box;" oninput="updateCharCount()"></textarea>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+        <span id="aiHint" style="font-size:11px;color:#9ca3af;"></span>
+        <div style="display:flex;gap:6px;">
+          <button onclick="clearAiInput()" style="font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;background:white;color:#374151;border:1px solid #d1d5db;">清空</button>
+          <button onclick="runAiAnalysis()" id="aiRunBtn" style="font-size:12px;padding:4px 12px;border-radius:6px;cursor:pointer;background:#3b82f6;color:white;border:none;">开始分析</button>
+        </div>
+      </div>
+    </div>
+    <!-- 加载动画 -->
+    <div id="aiLoading" style="display:none;align-items:center;justify-content:center;min-height:120px;">
+      <div style="text-align:center;">
+        <div style="display:inline-block;width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#3b82f6;border-radius:50%;animation:botSpin 0.8s linear infinite;"></div>
+        <div style="font-size:12px;color:#6b7280;margin-top:8px;">AI 正在分析中...</div>
+      </div>
+    </div>
+    <!-- 结果区 -->
+    <div id="aiResultWrap" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <span style="font-size:12px;font-weight:600;color:#374151;">分析结果</span>
+        <button onclick="copyAiResult()" style="font-size:11px;padding:3px 8px;border-radius:6px;cursor:pointer;background:white;color:#374151;border:1px solid #d1d5db;">复制结果</button>
+      </div>
+      <div id="aiResult" style="background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;padding:12px;max-height:300px;overflow-y:auto;"></div>
+    </div>
+    <!-- 聊天界面 -->
+    <div id="aiChatWrap" style="display:none;flex-direction:column;">
+      <div id="aiChatMsgs" style="max-height:320px;overflow-y:auto;margin-bottom:8px;display:flex;flex-direction:column;gap:8px;"></div>
+      <div style="display:flex;gap:6px;align-items:flex-end;">
+        <textarea id="aiChatInput" rows="2" placeholder="输入消息，Enter发送，Shift+Enter换行..." style="flex:1;font-size:13px;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;outline:none;resize:none;box-sizing:border-box;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>
+        <button onclick="sendChatMessage()" id="aiSendBtn" style="font-size:12px;padding:8px 14px;border-radius:8px;cursor:pointer;background:#3b82f6;color:white;border:none;white-space:nowrap;">发送</button>
+        <button onclick="clearChat()" style="font-size:11px;padding:8px 10px;border-radius:8px;cursor:pointer;background:white;color:#6b7280;border:1px solid #d1d5db;">清空</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes botSpin { to { transform: rotate(360deg); } }
+@keyframes botFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+@keyframes botPulseRing { 0%{box-shadow:0 6px 20px rgba(99,102,241,.45),inset 0 -2px 6px rgba(0,0,0,.15),0 0 0 0 rgba(139,92,246,.4)} 100%{box-shadow:0 6px 20px rgba(99,102,241,.45),inset 0 -2px 6px rgba(0,0,0,.15),0 0 0 14px rgba(139,92,246,0)} }
+#aiBot:not(:active) #botBody { animation: botFloat 3s ease-in-out infinite; }
+#aiBot:not(:active) #botBody::before { content:'';position:absolute;inset:0;border-radius:50%;animation: botPulseRing 2s ease-out infinite; }
+#aiBot:active { cursor:grabbing; }
+#aiBot:active #botBody { animation: none; }
+</style>
+
+<!-- ========== 视频改码 ========== -->
+<section id="tab-videomd5" class="tab-panel hidden">
+  <div class="max-w-3xl mx-auto px-4 py-6">
+    <div class="text-center mb-6">
+      <h2 class="text-xl font-bold text-gray-900">视频 MD5 改码工具</h2>
+      <p class="text-sm text-gray-500 mt-1">拖拽视频，一键转码改码，解决素材卡审</p>
+      <div id="vmd5Badge" class="inline-block mt-2 px-3 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-500">检测转码引擎...</div>
+    </div>
+
+    <div class="card p-5 mb-3">
+      <div id="vmd5DropZone" class="border-2 border-dashed border-gray-300 rounded-xl py-10 text-center cursor-pointer transition hover:border-indigo-400 hover:bg-indigo-50/30">
+        <div class="text-4xl mb-2">🎬</div>
+        <div class="text-sm text-gray-500">拖拽视频到此处（支持多个）<br>或 <span class="text-indigo-500 underline">点击选择文件</span></div>
+      </div>
+      <input type="file" id="vmd5FileInput" accept="video/*" multiple style="display:none">
+      <div id="vmd5FileList" class="mt-3"></div>
+    </div>
+
+    <div class="card p-5 mb-3">
+      <div class="text-sm font-semibold mb-2">改码级别</div>
+      <div class="grid grid-cols-3 gap-2">
+        <div class="vmd5-level-btn active border-2 border-indigo-500 bg-indigo-50 rounded-lg py-3 text-center cursor-pointer" data-level="light">
+          <div class="text-sm font-semibold text-indigo-500">轻度转码</div>
+          <div class="text-xs text-gray-400 mt-0.5">变速+裁帧，快速过审</div>
+          <div class="inline-block text-xs px-1.5 py-0.5 rounded mt-1 bg-green-100 text-green-600">推荐</div>
+        </div>
+        <div class="vmd5-level-btn border-2 border-gray-200 rounded-lg py-3 text-center cursor-pointer hover:border-indigo-300" data-level="standard">
+          <div class="text-sm font-semibold text-gray-700">标准转码</div>
+          <div class="text-xs text-gray-400 mt-0.5">变速+裁帧+微噪+码率</div>
+        </div>
+        <div class="vmd5-level-btn border-2 border-gray-200 rounded-lg py-3 text-center cursor-pointer hover:border-indigo-300" data-level="deep">
+          <div class="text-sm font-semibold text-gray-700">深度转码</div>
+          <div class="text-xs text-gray-400 mt-0.5">全参数重编码，最彻底</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 mt-3">
+        <span class="text-sm text-gray-500">每个视频生成</span>
+        <div class="flex items-center gap-2">
+          <button id="vmd5CopyMinus" class="w-7 h-7 border border-gray-300 rounded-md text-base text-gray-700 hover:border-indigo-400">-</button>
+          <span id="vmd5CopyCount" class="text-lg font-bold text-indigo-500 min-w-[24px] text-center">1</span>
+          <button id="vmd5CopyPlus" class="w-7 h-7 border border-gray-300 rounded-md text-base text-gray-700 hover:border-indigo-400">+</button>
+        </div>
+        <span class="text-sm text-gray-500">份不同版本</span>
+      </div>
+      <div id="vmd5CopyHint" class="text-xs text-gray-400 mt-1">每份版本 MD5 均不同，可批量过审</div>
+      <div class="flex gap-3 mt-4">
+        <button id="vmd5StartBtn" class="flex-1 py-3 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-500 disabled:opacity-40 disabled:cursor-not-allowed transition hover:shadow-lg hover:-translate-y-0.5" disabled>开始改码</button>
+        <button id="vmd5ClearBtn" class="flex-1 py-3 rounded-lg text-sm font-semibold text-gray-500 border border-gray-300 hover:text-gray-700 hover:border-gray-400 transition">清空</button>
+      </div>
+      <div id="vmd5ProgressWrap" class="mt-3 hidden">
+        <div class="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden"><div id="vmd5ProgressBar" class="h-full w-0 bg-gradient-to-r from-indigo-500 to-green-400 rounded-full transition-all duration-300"></div></div>
+        <div id="vmd5ProgressText" class="text-xs text-gray-400 text-center mt-1"></div>
+      </div>
+    </div>
+
+    <div id="vmd5ResultCard" class="card p-5 hidden">
+      <div class="text-sm font-semibold mb-2">改码结果</div>
+      <div id="vmd5ResultList"></div>
+      <div id="vmd5DownloadAllWrap" class="hidden">
+        <button id="vmd5DownloadAllBtn" class="inline-flex items-center gap-1 mt-3 px-6 py-2.5 text-sm font-semibold text-green-600 border border-green-200 rounded-lg bg-green-50 hover:bg-green-100 transition">⬇ 下载全部</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 敬请期待 ========== -->
+<section id="tab-more" class="tab-panel hidden">
+  <div class="flex items-center justify-center" style="min-height: 60vh">
+    <div class="text-center">
+      <div class="text-6xl mb-6">🚀</div>
+      <div style="font-size: 32px; font-weight: 800; color: #ef4444; letter-spacing: 2px; line-height: 1.4;">
+        更多内容正在努力开发中
+      </div>
+      <div style="font-size: 28px; font-weight: 700; color: #ef4444; letter-spacing: 1px; margin-top: 8px;">
+        敬 请 期 待
+      </div>
+      <div class="text-gray-400 mt-6 text-sm">新功能持续迭代中，点击右箭头返回首页</div>
+    </div>
+  </div>
+</section>
+
+<!-- 底部工具栏 -->
+<div class="fixed bottom-4 right-4 z-30 flex gap-2">
+  <button onclick="exportData()" class="btn-sm btn-outline shadow-lg" title="导出所有数据">📤 导出</button>
+  <button onclick="document.getElementById('importFile').click()" class="btn-sm btn-outline shadow-lg" title="导入数据">📥 导入</button>
+  <button onclick="loadDemoData()" class="btn-sm btn-outline shadow-lg" title="加载示例数据">📋 示例</button>
+  <button onclick="clearAllData()" class="btn-sm btn-danger shadow-lg" title="清空所有数据">🗑 清空</button>
+  <input id="importFile" type="file" accept=".json" style="display:none" onchange="importData(event)">
+</div>
+
+</main>
+
+<!-- ========== 模态框容器 ========== -->
+<div id="modalContainer"></div>
+
+<script>
+// ===== Toast 提示 =====
+function toast(msg, type) {
+  type = type || 'info';
+  const c = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = 'toast-item toast-' + type;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => { el.style.animation = 'toastOut .3s ease forwards'; setTimeout(() => el.remove(), 300); }, 2500);
+}
+
+// ===== 确认弹窗（替代 confirm） =====
+function showConfirm(msg, onYes) {
+  const el = document.createElement('div');
+  el.className = 'confirm-overlay';
+  el.id = 'confirmOverlay';
+  el.innerHTML =
+    '<div class="confirm-box">' +
+      '<div class="confirm-icon"><svg width="24" height="24" fill="none" stroke="#ef4444" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/></svg></div>' +
+      '<div class="confirm-msg">' + msg + '</div>' +
+      '<div class="confirm-btns">' +
+        '<button class="btn-sm btn-outline" onclick="document.getElementById(\'confirmOverlay\').remove()">取消</button>' +
+        '<button class="btn-sm btn-danger" id="confirmYesBtn">确认</button>' +
+      '</div>' +
+    '</div>';
+  el.addEventListener('click', e => { if (e.target === el) el.remove(); });
+  document.body.appendChild(el);
+  document.getElementById('confirmYesBtn').addEventListener('click', () => { el.remove(); onYes(); });
+}
+
+// ===== 通用工具 =====
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('tab-active', b.dataset.tab === name);
+  });
+  if (name === 'material') renderMaterials();
+  if (name === 'analytics') renderAnalytics();
+  if (name === 'project') renderProjects();
+  if (name === 'ocean') initOceanTab();
+  if (name === 'videomd5') initVmd5Tab();
+}
+
+function showModal(html) {
+  document.getElementById('modalContainer').innerHTML = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal-box">' + html + '</div></div>';
+}
+function closeModal() { document.getElementById('modalContainer').innerHTML = ''; }
+
+// ===== 全局搜索 =====
+function globalSearchExec() {
+  var kw = (document.getElementById('globalSearch').value || '').trim().toLowerCase();
+  var box = document.getElementById('globalSearchResults');
+  if (!kw) { box.style.display = 'none'; return; }
+
+  var results = [];
+
+  // 素材库
+  (materials || []).forEach(function(m) {
+    var hay = ((m.name||'') + ' ' + (m.tags||[]).join(' ') + ' ' + (m.note||'') + ' ' + (m.projectName||'') + ' ' + (m.type==='own'?'自家素材':'竞品素材') + ' ' + (m.level==='hot'?'爆款':m.level==='potential'?'潜力':'普通')).toLowerCase();
+    if (hay.indexOf(kw) !== -1) {
+      results.push({ tab: 'material', tabName: '素材库', title: m.name || '(未命名)', desc: (m.tags||[]).join(', ') + (m.projectName ? ' · ' + m.projectName : '') + (m.note ? ' · ' + m.note : ''), id: m.id });
+    }
+  });
+
+  // 数据分析
+  (analyticsData || []).forEach(function(d) {
+    var hay = ((d.date||'') + ' ' + (d.platform||'') + ' ' + (d.matName||'') + ' 消耗:' + (d.cost||0) + ' gmv:' + (d.gmv||0) + ' 展示:' + (d.show||0) + ' 点击:' + (d.click||0) + ' 转化:' + (d.conv||0)).toLowerCase();
+    if (hay.indexOf(kw) !== -1) {
+      results.push({ tab: 'analytics', tabName: '数据分析', title: (d.matName || '(无名称)') + ' · ' + (d.date||''), desc: (d.platform||'') + ' · 消耗¥' + (d.cost||0) + ' · GMV¥' + (d.gmv||0) + ' · 转化' + (d.conv||0), id: d.id });
+    }
+  });
+
+  // 项目管理
+  (projectData || []).forEach(function(p) {
+    var hay = ((p.name||'') + ' ' + (p.platform||'') + ' ' + (p.status||'') + ' ' + (p.note||'') + ' 预算:' + (p.budget||0) + ' roi:' + (p.targetROI||0)).toLowerCase();
+    if (hay.indexOf(kw) !== -1) {
+      results.push({ tab: 'project', tabName: '项目管理', title: p.name || '(未命名)', desc: (p.platform||'') + ' · ' + (p.status||'') + ' · 预算¥' + (p.budget||0) + ' · 目标ROI ' + (p.targetROI||0) + (p.note ? ' · ' + p.note : ''), id: p.id });
+    }
+  });
+
+  // 文件夹
+  (matFolders || []).forEach(function(f) {
+    var hay = ((f.name||'') + ' ' + (f.projectName||'') + ' ' + (f.note||'')).toLowerCase();
+    if (hay.indexOf(kw) !== -1) {
+      results.push({ tab: 'material', tabName: '素材库·文件夹', title: f.name || '(未命名)', desc: '文件夹' + (f.projectName ? ' · ' + f.projectName : '') + (f.note ? ' · ' + f.note : ''), id: f.id, isFolder: true });
+    }
+  });
+
+  if (results.length === 0) {
+    box.innerHTML = '<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">未找到与「' + escapeHtml(kw) + '」相关的内容</div>';
+  } else {
+    // 按tab分组
+    var groups = {};
+    results.forEach(function(r) {
+      if (!groups[r.tabName]) groups[r.tabName] = [];
+      groups[r.tabName].push(r);
+    });
+    var html = '';
+    var total = 0;
+    for (var g in groups) {
+      html += '<div style="padding:6px 12px;background:#f9fafb;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #f3f4f6;">' + g + ' (' + groups[g].length + ')</div>';
+      groups[g].forEach(function(r) {
+        total++;
+        html += '<div onclick="jumpToResult(\'' + r.tab + '\',\'' + (r.id||'') + '\',' + (r.isFolder ? 'true' : 'false') + ')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f3f4f6;transition:background .15s;" onmouseenter="this.style.background=\'#f3f4ff\'" onmouseleave="this.style.background=\'#fff\'">' +
+          '<div style="font-size:13px;font-weight:500;color:#1f2937;">' + escapeHtml(r.title) + '</div>' +
+          '<div style="font-size:11px;color:#9ca3af;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(r.desc) + '</div>' +
+        '</div>';
+      });
+    }
+    box.innerHTML = '<div style="padding:6px 12px;font-size:11px;color:#9ca3af;border-bottom:1px solid #e5e7eb;">共 ' + total + ' 条结果</div>' + html;
+  }
+  box.style.display = 'block';
+}
+
+function closeGlobalSearch() {
+  document.getElementById('globalSearchResults').style.display = 'none';
+}
+
+function jumpToResult(tab, id, isFolder) {
+  closeGlobalSearch();
+  switchTab(tab);
+  if (tab === 'material' && id) {
+    setTimeout(function() {
+      if (isFolder) {
+        openFolder(id);
+      } else {
+        var el = document.getElementById('mat_video_' + id) || document.querySelector('[onclick*="' + id + '"]');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 200);
+  }
+}
+
+// 点击外部关闭搜索
+document.addEventListener('click', function(e) {
+  var box = document.getElementById('globalSearchResults');
+  var input = document.getElementById('globalSearch');
+  if (box && !box.contains(e.target) && e.target !== input) {
+    box.style.display = 'none';
+  }
+});
+
+function saveLS(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) { console.error('存储失败', e); } }
+function loadLS(key, def) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; } }
+
+// 数据持久化（localStorage 跨会话保留，不清空）
+
+// ===== IndexedDB 视频存储 =====
+const VIDEO_DB = 'adWorkbenchVideos';
+const VIDEO_STORE = 'videos';
+function openVideoDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(VIDEO_DB, 1);
+    req.onupgradeneeded = e => { e.target.result.createObjectStore(VIDEO_STORE, { keyPath: 'id' }); };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = e => reject(e.target.error);
+  });
+}
+function saveVideoToDB(id, file) {
+  return openVideoDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(VIDEO_STORE, 'readwrite');
+    tx.objectStore(VIDEO_STORE).put({ id, file });
+    tx.oncomplete = () => resolve();
+    tx.onerror = e => reject(e.target.error);
+  }));
+}
+function getVideoFromDB(id) {
+  return openVideoDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(VIDEO_STORE, 'readonly');
+    const req = tx.objectStore(VIDEO_STORE).get(id);
+    req.onsuccess = () => resolve(req.result?.file || null);
+    req.onerror = e => reject(e.target.error);
+  }));
+}
+function deleteVideoFromDB(id) {
+  return openVideoDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(VIDEO_STORE, 'readwrite');
+    tx.objectStore(VIDEO_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = e => reject(e.target.error);
+  }));
+}
+function fmt(n, d=2) { return n == null || isNaN(n) ? '--' : Number(n).toFixed(d); }
+function fmtMoney(n) { if (n == null || isNaN(n)) return '--'; return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+// ===== 数据导出/导入 =====
+function exportData() {
+  const data = {
+    version: 1,
+    exportTime: new Date().toISOString(),
+    materials: loadLS('mat_data', []),
+    matFolders: loadLS('mat_folders', []),
+    analyticsData: loadLS('ana_data', []),
+    projectData: loadLS('proj_data', []),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '投放工作台数据_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.materials) { saveLS('mat_data', data.materials); materials = data.materials; }
+      if (data.matFolders) { saveLS('mat_folders', data.matFolders); matFolders = data.matFolders; }
+      if (data.analyticsData) { saveLS('ana_data', data.analyticsData); analyticsData = data.analyticsData; }
+      if (data.projectData) { saveLS('proj_data', data.projectData); projectData = data.projectData; }
+      renderMaterials();
+      renderAnalytics();
+      renderProjects();
+      toast('导入成功！共导入素材' + (data.materials||[]).length + '条、分析数据' + (data.analyticsData||[]).length + '条、项目' + (data.projectData||[]).length + '条', 'success');
+    } catch(err) {
+      toast('导入失败：文件格式不正确', 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function loadDemoData() {
+  showConfirm('将加载示例数据覆盖当前数据，是否继续？', () => {
+  const today = new Date();
+  const ds = (offset) => { const d = new Date(today); d.setDate(d.getDate() - offset); return d.toISOString().slice(0,10); };
+
+  materials = [
+    { id:'d1', name:'剧情反转-闺蜜推荐', type:'own', tags:['剧情','闺蜜','种草'], level:'hot', note:'开头3秒留人，反转剧情效果好' },
+    { id:'d2', name:'开箱测评-红盒', type:'own', tags:['开箱','测评','卖点'], level:'potential', note:'突出成分卖点，转化稳定' },
+    { id:'d3', name:'竞品A-价格对比', type:'competitor', tags:['价格','对比'], level:'normal', note:'竞品主打低价策略，关注其素材节奏' },
+    { id:'d4', name:'UGC素人分享', type:'own', tags:['UGC','素人','真实'], level:'potential', note:'真实感强，CTR高' },
+    { id:'d5', name:'竞品B-功效对比', type:'competitor', tags:['功效','对比'], level:'normal', note:'竞品强调功效验证，可参考其话术' },
+  ];
+  saveLS('mat_data', materials);
+
+  projectData = [
+    { id:'p1', name:'夏季大促-美妆专场', platform:'千川', status:'投放中', budget:100000, targetROI:2.5, days:30, startDate: ds(5), endDate: ds(-25), note:'主推精华液+面霜组合装' },
+    { id:'p2', name:'618返场-家居清洁', platform:'抖音CID', status:'暂停', budget:50000, targetROI:2.0, days:15, startDate: ds(20), endDate: ds(5), note:'暂停优化素材后再启动' },
+    { id:'p3', name:'新品首发-精华水', platform:'小红书', status:'筹备中', budget:80000, targetROI:3.0, days:45, startDate: ds(-10), endDate: ds(-55), note:'新品上市，种草为主' },
+  ];
+  saveLS('proj_data', projectData);
+
+  analyticsData = [
+    { id:'an1', date:ds(6), platform:'千川', matName:'剧情反转-闺蜜推荐', cost:3200, gmv:8900, show:56000, click:2800, conv:85, ctr3s:28.5, playRate:18.2 },
+    { id:'an2', date:ds(6), platform:'小红书', matName:'开箱测评-红盒', cost:2100, gmv:5400, show:38000, click:1520, conv:62, ctr3s:22.1, playRate:15.6 },
+    { id:'an3', date:ds(5), platform:'千川', matName:'剧情反转-闺蜜推荐', cost:3500, gmv:9800, show:62000, click:3100, conv:98, ctr3s:30.2, playRate:19.0 },
+    { id:'an4', date:ds(5), platform:'腾讯广告', matName:'UGC素人分享', cost:1800, gmv:4200, show:32000, click:1280, conv:51, ctr3s:25.3, playRate:16.8 },
+    { id:'an5', date:ds(4), platform:'千川', matName:'剧情反转-闺蜜推荐', cost:4100, gmv:12500, show:68000, click:3400, conv:112, ctr3s:31.8, playRate:20.5 },
+    { id:'an6', date:ds(4), platform:'小红书', matName:'开箱测评-红盒', cost:2400, gmv:6800, show:42000, click:1700, conv:75, ctr3s:24.0, playRate:17.2 },
+    { id:'an7', date:ds(3), platform:'千川', matName:'UGC素人分享', cost:2800, gmv:7600, show:51000, click:2550, conv:88, ctr3s:27.6, playRate:18.5 },
+    { id:'an8', date:ds(3), platform:'腾讯广告', matName:'剧情反转-闺蜜推荐', cost:3200, gmv:9100, show:58000, click:2900, conv:95, ctr3s:29.1, playRate:18.8 },
+    { id:'an9', date:ds(2), platform:'千川', matName:'开箱测评-红盒', cost:3600, gmv:10200, show:64000, click:3200, conv:108, ctr3s:30.5, playRate:19.8 },
+    { id:'an10', date:ds(2), platform:'小红书', matName:'UGC素人分享', cost:2200, gmv:5900, show:39000, click:1560, conv:68, ctr3s:23.8, playRate:16.5 },
+    { id:'an11', date:ds(1), platform:'千川', matName:'剧情反转-闺蜜推荐', cost:4500, gmv:13800, show:72000, click:3600, conv:125, ctr3s:32.5, playRate:21.0 },
+    { id:'an12', date:ds(1), platform:'腾讯广告', matName:'开箱测评-红盒', cost:2900, gmv:8200, show:52000, click:2600, conv:90, ctr3s:28.7, playRate:18.2 },
+  ];
+  saveLS('ana_data', analyticsData);
+
+  renderMaterials();
+  renderProjects();
+  renderAnalytics();
+  toast('示例数据已加载', 'success');
+  });
+}
+
+function clearAllData() {
+  showConfirm('确认清空所有数据？此操作不可恢复！', () => {
+    materials = [];
+    projectData = [];
+    analyticsData = [];
+    matFolders = [];
+    saveLS('mat_data', materials);
+    saveLS('mat_folders', matFolders);
+    saveLS('proj_data', projectData);
+    saveLS('ana_data', analyticsData);
+
+    renderMaterials();
+    renderProjects();
+    renderAnalytics();
+    toast('所有数据已清空', 'success');
+  });
+}
+
+// ===== 素材库 =====
+let materials = loadLS('mat_data', []);
+let matFolders = loadLS('mat_folders', []);
+let currentFolderId = null; // null=根目录
+const TAG_COLORS = ['bg-blue-100 text-blue-700','bg-green-100 text-green-700','bg-yellow-100 text-yellow-700','bg-pink-100 text-pink-700','bg-purple-100 text-purple-700','bg-orange-100 text-orange-700'];
+
+// ===== 素材文件夹 =====
+function openFolderModal(editId) {
+  const f = editId ? matFolders.find(x => x.id === editId) : null;
+  var projOpts = '<option value="">不关联项目</option>' +
+    projectData.map(function(p) { return '<option value="' + p.id + '"' + (f&&f.projectId===p.id?' selected':'') + '>' + p.name + '</option>'; }).join('');
+  showModal(
+    '<h3 class="font-semibold text-base mb-4">' + (f ? '编辑文件夹' : '新建文件夹') + '</h3>' +
+    '<div class="space-y-3">' +
+      '<div><label class="text-sm text-gray-500">文件夹名称 *</label><input id="fName" value="' + (f?f.name:'') + '" placeholder="例如: 夏季大促素材" class="input-field mt-1"></div>' +
+      '<div><label class="text-sm text-gray-500">关联项目</label><select id="fProject" class="input-field mt-1">' + projOpts + '</select></div>' +
+      '<div><label class="text-sm text-gray-500">备注</label><input id="fNote" value="' + (f?f.note:'') + '" placeholder="可选" class="input-field mt-1"></div>' +
+    '</div>' +
+    '<div class="flex gap-3 mt-5">' +
+      '<button onclick="saveFolder(\'' + (editId||'') + '\')" class="btn-sm btn-primary">保存</button>' +
+      '<button onclick="closeModal()" class="btn-sm btn-outline">取消</button>' +
+    '</div>'
+  );
+}
+
+function saveFolder(editId) {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { toast('请输入文件夹名称', 'warn'); return; }
+  const projSel = document.getElementById('fProject');
+  const projectId = projSel.value;
+  const projectName = projSel.selectedIndex > 0 ? projSel.options[projSel.selectedIndex].text : '';
+  if (editId) {
+    matFolders = matFolders.map(f => f.id === editId ? { ...f, name, projectId, projectName, note: document.getElementById('fNote').value.trim() } : f);
+  } else {
+    matFolders.unshift({ id: 'fld_' + Date.now().toString(), name, projectId, projectName, note: document.getElementById('fNote').value.trim() });
+  }
+  saveLS('mat_folders', matFolders);
+  closeModal();
+  renderMaterials();
+  toast(editId ? '文件夹已更新' : '文件夹已创建', 'success');
+}
+
+function deleteFolder(id) {
+  const folder = matFolders.find(f => f.id === id);
+  const count = materials.filter(m => m.folderId === id).length;
+  showConfirm('确认删除文件夹"' + (folder?folder.name:'') + '"？' + (count > 0 ? '文件夹内 ' + count + ' 个素材将移至根目录。' : ''), () => {
+    materials = materials.map(m => m.folderId === id ? { ...m, folderId: null } : m);
+    saveLS('mat_data', materials);
+    matFolders = matFolders.filter(f => f.id !== id);
+    saveLS('mat_folders', matFolders);
+    if (currentFolderId === id) currentFolderId = null;
+    renderMaterials();
+    toast('文件夹已删除', 'success');
+  });
+}
+
+function openFolder(id) {
+  currentFolderId = id;
+  renderMaterials();
+}
+
+function backToRoot() {
+  currentFolderId = null;
+  renderMaterials();
+}
+
+function openMaterialModal(editId) {
+  const m = editId ? materials.find(x => x.id === editId) : null;
+  showModal(
+    '<h3 class="font-semibold text-base mb-4">' + (m ? '编辑素材' : '添加素材') + '</h3>' +
+    '<div class="space-y-3">' +
+      '<div><label class="text-sm text-gray-500">名称</label><input id="mName" value="' + (m?m.name:'') + '" class="input-field mt-1"></div>' +
+      '<div><label class="text-sm text-gray-500">类型</label><select id="mType" class="input-field mt-1"><option value="own"' + (m&&m.type==='own'?' selected':'') + '>自家素材</option><option value="competitor"' + (m&&m.type==='competitor'?' selected':'') + '>竞品素材</option></select></div>' +
+      '<div><label class="text-sm text-gray-500">标签（逗号分隔）</label><input id="mTags" value="' + (m?m.tags.join(','):'' )+ '" placeholder="例如: 剧情,开箱,卖点" class="input-field mt-1"></div>' +
+      '<div><label class="text-sm text-gray-500">素材级别</label><select id="mLevel" class="input-field mt-1"><option value="normal"' + (!m||!m.level||m.level==='normal'?' selected':'') + '>普通</option><option value="hot"' + (m&&m.level==='hot'?' selected':'') + '>爆款</option><option value="potential"' + (m&&m.level==='potential'?' selected':'') + '>潜力</option></select></div>' +
+      '<div><label class="text-sm text-gray-500">备注</label><textarea id="mNote" rows="2" class="input-field mt-1">' + (m?m.note:'') + '</textarea></div>' +
+    '</div>' +
+    '<div class="flex gap-3 mt-5">' +
+      '<button onclick="saveMaterial(\'' + (editId||'') + '\')" class="btn-sm btn-primary">保存</button>' +
+      '<button onclick="closeModal()" class="btn-sm btn-outline">取消</button>' +
+    '</div>'
+  );
+}
+
+// ===== 批量添加素材 =====
+let batchRows = 3;
+function openBatchMaterialModal() {
+  batchRows = 3;
+  renderBatchForm();
+}
+
+function renderBatchForm() {
+  let rows = '';
+  for (let i = 0; i < batchRows; i++) {
+    rows += '<div class="border border-surface-200 rounded-lg p-3 mb-3 relative">' +
+      (i > 0 ? '<button onclick="removeBatchRow(' + i + ')" class="absolute top-2 right-2 text-gray-300 hover:text-danger text-sm">✕</button>' : '') +
+      '<div class="grid grid-cols-2 gap-3 mb-2">' +
+        '<div><label class="text-xs text-gray-400">名称</label><input id="bName_' + i + '" placeholder="素材名称" class="input-field mt-1 text-sm"></div>' +
+        '<div><label class="text-xs text-gray-400">类型</label><select id="bType_' + i + '" class="input-field mt-1 text-sm"><option value="own">自家</option><option value="competitor">竞品</option></select></div>' +
+      '</div>' +
+      '<div class="grid grid-cols-2 gap-3 mb-2">' +
+        '<div><label class="text-xs text-gray-400">标签</label><input id="bTags_' + i + '" placeholder="剧情,种草" class="input-field mt-1 text-sm"></div>' +
+        '<div><label class="text-xs text-gray-400">级别</label><select id="bLevel_' + i + '" class="input-field mt-1 text-sm"><option value="normal">普通</option><option value="hot">爆款</option><option value="potential">潜力</option></select></div>' +
+      '</div>' +
+      '<div><label class="text-xs text-gray-400">备注</label><input id="bNote_' + i + '" placeholder="可选备注" class="input-field mt-1 text-sm"></div>' +
+    '</div>';
+  }
+  showModal(
+    '<h3 class="font-semibold text-base mb-4">批量添加素材</h3>' +
+    '<div id="batchFormBody">' + rows + '</div>' +
+    '<button onclick="addBatchRow()" class="w-full border-2 border-dashed border-surface-300 rounded-lg py-2 text-sm text-gray-400 hover:text-brand-600 hover:border-brand-400 transition mb-4">+ 再添加一行</button>' +
+    '<div class="flex gap-3">' +
+      '<button onclick="saveBatchMaterials()" class="btn-sm btn-primary">全部保存</button>' +
+      '<button onclick="closeModal()" class="btn-sm btn-outline">取消</button>' +
+    '</div>'
+  );
+}
+
+function addBatchRow() {
+  const saved = {};
+  for (let i = 0; i < batchRows; i++) {
+    const el = (id) => document.getElementById(id);
+    saved[i] = {
+      name: el('bName_' + i)?.value || '',
+      type: el('bType_' + i)?.value || 'own',
+      tags: el('bTags_' + i)?.value || '',
+      level: el('bLevel_' + i)?.value || 'normal',
+      note: el('bNote_' + i)?.value || '',
+    };
+  }
+  batchRows++;
+  renderBatchForm();
+  for (let i = 0; i < batchRows - 1; i++) {
+    const el = (id) => document.getElementById(id);
+    if (saved[i]) {
+      if (el('bName_' + i)) el('bName_' + i).value = saved[i].name;
+      if (el('bType_' + i)) el('bType_' + i).value = saved[i].type;
+      if (el('bTags_' + i)) el('bTags_' + i).value = saved[i].tags;
+      if (el('bLevel_' + i)) el('bLevel_' + i).value = saved[i].level;
+      if (el('bNote_' + i)) el('bNote_' + i).value = saved[i].note;
+    }
+  }
+}
+
+function removeBatchRow(idx) {
+  const saved = {};
+  for (let i = 0; i < batchRows; i++) {
+    if (i === idx) continue;
+    const el = (id) => document.getElementById(id);
+    saved[i < idx ? i : i - 1] = {
+      name: el('bName_' + i)?.value || '',
+      type: el('bType_' + i)?.value || 'own',
+      tags: el('bTags_' + i)?.value || '',
+      level: el('bLevel_' + i)?.value || 'normal',
+      note: el('bNote_' + i)?.value || '',
+    };
+  }
+  batchRows--;
+  renderBatchForm();
+  for (let i = 0; i < batchRows; i++) {
+    const el = (id) => document.getElementById(id);
+    if (saved[i]) {
+      if (el('bName_' + i)) el('bName_' + i).value = saved[i].name;
+      if (el('bType_' + i)) el('bType_' + i).value = saved[i].type;
+      if (el('bTags_' + i)) el('bTags_' + i).value = saved[i].tags;
+      if (el('bLevel_' + i)) el('bLevel_' + i).value = saved[i].level;
+      if (el('bNote_' + i)) el('bNote_' + i).value = saved[i].note;
+    }
+  }
+}
+
+function saveBatchMaterials() {
+  let count = 0;
+  for (let i = 0; i < batchRows; i++) {
+    const name = (document.getElementById('bName_' + i)?.value || '').trim();
+    if (!name) continue;
+    const data = {
+      id: Date.now().toString() + '_' + i,
+      name: name,
+      type: document.getElementById('bType_' + i)?.value || 'own',
+      tags: (document.getElementById('bTags_' + i)?.value || '').split(',').map(s=>s.trim()).filter(Boolean),
+      level: document.getElementById('bLevel_' + i)?.value || 'normal',
+      note: (document.getElementById('bNote_' + i)?.value || '').trim(),
+    };
+    materials.unshift(data);
+    count++;
+  }
+  if (count === 0) { toast('请至少填写一个素材名称', 'warn'); return; }
+  saveLS('mat_data', materials);
+  closeModal();
+  renderMaterials();
+  toast('成功添加 ' + count + ' 个素材', 'success');
+}
+
+// ===== 视频拖拽导入 =====
+function openVideoDropModal(folderId) {
+  const fid = folderId || currentFolderId || '';
+  const fld = fid ? matFolders.find(f => f.id === fid) : null;
+  // 如果从文件夹内打开，自动关联该文件夹的项目
+  const autoProjId = fld ? fld.projectId : '';
+  var projOpts = '<option value="">不关联项目</option>' +
+    projectData.map(function(p) { return '<option value="' + p.id + '"' + (p.id===autoProjId?' selected':'') + '>' + p.name + '</option>'; }).join('');
+  showModal(
+    '<h3 class="font-semibold text-base mb-4">视频导入素材' + (fld ? ' → ' + fld.name : '') + '</h3>' +
+    (fid ? '<input type="hidden" id="vFolderId" value="' + fid + '">' : '') +
+    '<div class="mb-4"><label class="text-sm text-gray-500">关联项目</label><select id="vProject" class="input-field mt-1">' + projOpts + '</select></div>' +
+    '<div id="videoDropZone" class="border-2 border-dashed border-surface-300 rounded-xl p-8 text-center cursor-pointer hover:border-brand-400 hover:bg-brand-50/30 transition" onclick="document.getElementById(\'videoFileInput\').click()">' +
+      '<div class="text-4xl mb-3">🎬</div>' +
+      '<div class="text-sm text-gray-500 mb-1">点击选择或拖拽视频文件到此处</div>' +
+      '<div class="text-xs text-gray-400">支持 MP4 / MOV / AVI，可同时导入多个视频</div>' +
+    '</div>' +
+    '<input id="videoFileInput" type="file" accept="video/*" multiple style="display:none" onchange="handleVideoFiles(this.files)">' +
+    '<div id="videoPreviewList" class="mt-4 space-y-3"></div>' +
+    '<div id="videoActions" class="hidden flex gap-3 mt-4">' +
+      '<button onclick="saveVideoMaterials()" class="btn-sm btn-primary">全部保存为素材</button>' +
+      '<button onclick="closeModal()" class="btn-sm btn-outline">取消</button>' +
+    '</div>'
+  );
+  setTimeout(() => {
+    const zone = document.getElementById('videoDropZone');
+    if (!zone) return;
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('border-brand-400', 'bg-brand-50/30'); });
+    zone.addEventListener('dragleave', e => { e.preventDefault(); zone.classList.remove('border-brand-400', 'bg-brand-50/30'); });
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('border-brand-400', 'bg-brand-50/30');
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('video/'));
+      if (files.length > 0) handleVideoFiles(files);
+      else toast('请拖入视频文件', 'warn');
+    });
+  }, 100);
+}
+
+let videoFilesCache = [];
+
+// 共享：生成视频播放器HTML（带完整控件）
+function buildVideoPlayerHTML(videoId, src, compact) {
+  const h = compact ? 'h-28' : 'h-44';
+  return '<div class="vp-wrap ' + h + '" id="' + videoId + '_wrap">' +
+    '<video id="' + videoId + '" src="' + src + '" class="w-full h-full object-contain" preload="metadata" muted playsinline></video>' +
+    '<div class="vp-overlay" id="' + videoId + '_overlay" onclick="vpToggle(\'' + videoId + '\')">' +
+      '<div class="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center"><svg class="w-5 h-5 text-brand-600 ml-0.5" fill="currentColor" viewBox="0 0 20 20"><polygon points="6,4 16,10 6,16"/></svg></div>' +
+    '</div>' +
+    '<div class="vp-controls" id="' + videoId + '_ctrls" style="display:none">' +
+      '<div class="vp-bar" id="' + videoId + '_bar" onclick="vpSeekBar(event,\'' + videoId + '\')" onmousemove="vpSeekBar(event,\'' + videoId + '\')">' +
+        '<div class="vp-bar-fill" id="' + videoId + '_fill"></div>' +
+        '<div class="vp-bar-handle" id="' + videoId + '_handle"></div>' +
+      '</div>' +
+      '<div class="vp-btns">' +
+        '<button class="vp-btn" onclick="vpToggle(\'' + videoId + '\')" id="' + videoId + '_playbtn" title="播放/暂停"><svg viewBox="0 0 20 20"><polygon points="6,4 16,10 6,16"/></svg></button>' +
+        '<button class="vp-btn" onclick="vpSkip(\'' + videoId + '\',-5)" title="后退5秒"><svg viewBox="0 0 20 20"><path d="M3.6 10a6.4 6.4 0 0111.2-4.2L17 4v5h-5l1.8-1.8A4.8 4.8 0 004.4 10 5.6 5.6 0 0010 15.6V17a7 7 0 01-6.4-7z"/></svg>-5</button>' +
+        '<button class="vp-btn" onclick="vpSkip(\'' + videoId + '\',5)" title="快进5秒"><svg viewBox="0 0 20 20"><path d="M16.4 10a6.4 6.4 0 01-11.2 4.2L3 16v-5h5l-1.8 1.8A4.8 4.8 0 0015.6 10 5.6 5.6 0 0010 4.4V3a7 7 0 016.4 7z"/></svg>+5</button>' +
+        '<span class="vp-time" id="' + videoId + '_time">0:00/0:00</span>' +
+        '<select class="vp-speed" id="' + videoId + '_speed" onchange="vpSpeed(\'' + videoId + '\',this.value)">' +
+          '<option value="0.5">0.5x</option><option value="0.75">0.75x</option><option value="1" selected>1x</option><option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2x</option>' +
+        '</select>' +
+        '<button class="vp-btn vp-expand" onclick="vpFullscreen(\'' + videoId + '\')" title="全屏查看"><svg viewBox="0 0 20 20"><path d="M3 3h5v2H5v3H3V3zm9 0h5v5h-2V5h-3V3zM3 12h2v3h3v2H3v-5zm12 3h-3v2h5v-5h-2v3z"/></svg></button>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function vpFormatTime(s) {
+  if (!s || !isFinite(s)) return '0:00';
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
+function vpToggle(vid) {
+  const v = document.getElementById(vid);
+  const overlay = document.getElementById(vid + '_overlay');
+  const ctrls = document.getElementById(vid + '_ctrls');
+  if (!v) return;
+  if (v.paused) {
+    v.muted = false;
+    v.play();
+    overlay.style.display = 'none';
+    ctrls.style.display = '';
+  } else {
+    v.pause();
+    overlay.style.display = '';
+  }
+}
+
+function vpSkip(vid, sec) {
+  const v = document.getElementById(vid);
+  if (v && isFinite(v.duration)) v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + sec));
+}
+
+function vpSpeed(vid, val) {
+  const v = document.getElementById(vid);
+  if (v) v.playbackRate = parseFloat(val);
+}
+
+function vpSeekBar(e, vid) {
+  if (e.type === 'mousemove' && !e.buttons) return;
+  const v = document.getElementById(vid);
+  const bar = document.getElementById(vid + '_bar');
+  if (!v || !bar || !isFinite(v.duration)) return;
+  const rect = bar.getBoundingClientRect();
+  const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  v.currentTime = ratio * v.duration;
+}
+
+function vpFullscreen(vid) {
+  const v = document.getElementById(vid);
+  if (!v) return;
+  const src = v.src;
+  const ct = v.currentTime;
+  const overlay = document.createElement('div');
+  overlay.className = 'vp-fullscreen-overlay';
+  overlay.id = 'vp_fs_overlay';
+  overlay.innerHTML =
+    '<button class="vp-fullscreen-close" onclick="document.getElementById(\'vp_fs_overlay\').remove()">&#10005;</button>' +
+    '<video id="vp_fs_video" src="' + src + '" style="max-width:90vw;max-height:85vh;border-radius:8px" controls autoplay></video>';
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  const fsV = document.getElementById('vp_fs_video');
+  if (fsV) fsV.currentTime = ct;
+}
+
+function vpBindUpdate(vid) {
+  const v = document.getElementById(vid);
+  if (!v) return;
+  const fill = document.getElementById(vid + '_fill');
+  const handle = document.getElementById(vid + '_handle');
+  const timeEl = document.getElementById(vid + '_time');
+  const playbtn = document.getElementById(vid + '_playbtn');
+  const overlay = document.getElementById(vid + '_overlay');
+
+  function update() {
+    if (!isFinite(v.duration)) return;
+    const pct = (v.currentTime / v.duration * 100).toFixed(2) + '%';
+    if (fill) fill.style.width = pct;
+    if (handle) handle.style.left = pct;
+    if (timeEl) timeEl.textContent = vpFormatTime(v.currentTime) + '/' + vpFormatTime(v.duration);
+  }
+
+  v.addEventListener('timeupdate', update);
+  v.addEventListener('loadedmetadata', update);
+  v.addEventListener('play', () => {
+    if (playbtn) playbtn.innerHTML = '<svg viewBox="0 0 20 20"><rect x="5" y="4" width="3" height="12"/><rect x="12" y="4" width="3" height="12"/></svg>';
+    overlay.style.display = 'none';
+  });
+  v.addEventListener('pause', () => {
+    if (playbtn) playbtn.innerHTML = '<svg viewBox="0 0 20 20"><polygon points="6,4 16,10 6,16"/></svg>';
+    overlay.style.display = '';
+  });
+  v.addEventListener('ended', () => {
+    if (playbtn) playbtn.innerHTML = '<svg viewBox="0 0 20 20"><polygon points="6,4 16,10 6,16"/></svg>';
+    overlay.style.display = '';
+  });
+}
+
+function handleVideoFiles(files) {
+  const list = document.getElementById('videoPreviewList');
+  const actions = document.getElementById('videoActions');
+  videoFilesCache = Array.from(files);
+
+  list.innerHTML = '';
+  videoFilesCache.forEach((file, i) => {
+    const url = URL.createObjectURL(file);
+    const item = document.createElement('div');
+    item.className = 'border border-surface-200 rounded-lg p-3 space-y-2';
+    item.innerHTML =
+      '<div class="flex items-start gap-3">' +
+        '<div class="w-44 flex-shrink-0">' + buildVideoPlayerHTML('vimp_' + i, url, true) + '</div>' +
+        '<div class="flex-1 min-w-0">' +
+          '<div class="text-sm font-medium truncate">' + file.name + '</div>' +
+          '<div class="text-xs text-gray-400" id="vInfo_' + i + '">解析中...</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="grid grid-cols-2 gap-2">' +
+        '<div><label class="text-xs text-gray-400">素材类型</label><select id="vType_' + i + '" class="input-field mt-1 text-sm py-1"><option value="own">自家</option><option value="competitor">竞品</option></select></div>' +
+        '<div><label class="text-xs text-gray-400">级别</label><select id="vLevel_' + i + '" class="input-field mt-1 text-sm py-1"><option value="normal">普通</option><option value="hot">爆款</option><option value="potential">潜力</option></select></div>' +
+      '</div>' +
+      '<div class="grid grid-cols-2 gap-2 mt-2">' +
+        '<div><label class="text-xs text-gray-400">标签</label><input id="vTags_' + i + '" placeholder="剧情,种草" class="input-field mt-1 text-sm py-1"></div>' +
+        '<div><label class="text-xs text-gray-400">备注</label><input id="vNote_' + i + '" placeholder="备注" class="input-field mt-1 text-sm py-1"></div>' +
+      '</div>';
+    list.appendChild(item);
+
+    // 绑定播放器控件
+    setTimeout(() => vpBindUpdate('vimp_' + i), 150);
+
+    // 解析视频元数据
+    const metaVideo = document.createElement('video');
+    metaVideo.preload = 'metadata';
+    metaVideo.muted = true;
+    metaVideo.src = url;
+    metaVideo.onloadedmetadata = function() {
+      const dur = metaVideo.duration;
+      const w = metaVideo.videoWidth;
+      const h = metaVideo.videoHeight;
+      let durStr = '--';
+      if (dur && isFinite(dur)) {
+        const mm = Math.floor(dur / 60);
+        const ss = Math.floor(dur % 60);
+        durStr = mm > 0 ? mm + '分' + ss + '秒' : ss + '秒';
+      }
+      const sizeStr = file.size > 1048576 ? (file.size / 1048576).toFixed(1) + 'MB' : (file.size / 1024).toFixed(0) + 'KB';
+      document.getElementById('vInfo_' + i).textContent = durStr + ' | ' + w + '×' + h + ' | ' + sizeStr;
+
+      // 自动推断标签
+      const autoTags = [];
+      if (dur && dur < 15) autoTags.push('短视频');
+      else if (dur && dur < 30) autoTags.push('竖版视频');
+      else if (dur && dur >= 60) autoTags.push('长视频');
+      if (w && h && w > h) autoTags.push('横版');
+      else autoTags.push('竖版');
+      const existingTags = (document.getElementById('vTags_' + i)?.value || '').trim();
+      document.getElementById('vTags_' + i).value = (existingTags ? existingTags + ',' : '') + autoTags.join(',');
+    };
+  });
+
+  actions.classList.remove('hidden');
+}
+
+function saveVideoMaterials() {
+  if (videoFilesCache.length === 0) return;
+  let count = 0;
+  const savePromises = [];
+    const vProj = document.getElementById('vProject');
+    const vProjId = vProj ? vProj.value : '';
+    const vProjName = vProj && vProj.selectedIndex > 0 ? vProj.options[vProj.selectedIndex].text : '';
+    const vFolderInput = document.getElementById('vFolderId');
+    const vFolderId = vFolderInput ? vFolderInput.value : '';
+    videoFilesCache.forEach((file, i) => {
+    const name = file.name.replace(/\.[^.]+$/, '');
+    const id = Date.now().toString() + '_v' + i;
+    const data = {
+      id: id,
+      name: name,
+      type: document.getElementById('vType_' + i)?.value || 'own',
+      tags: (document.getElementById('vTags_' + i)?.value || '').split(',').map(s=>s.trim()).filter(Boolean),
+      level: document.getElementById('vLevel_' + i)?.value || 'normal',
+      video: true,
+      projectId: vProjId,
+      projectName: vProjName,
+      folderId: vFolderId,
+      note: (document.getElementById('vNote_' + i)?.value || '').trim(),
+    };
+    materials.unshift(data);
+    count++;
+    // 保存视频文件到 IndexedDB
+    savePromises.push(saveVideoToDB(id, file));
+  });
+  saveLS('mat_data', materials);
+  closeModal();
+  Promise.all(savePromises).then(() => {
+    renderMaterials();
+    toast('成功导入 ' + count + ' 个视频素材', 'success');
+  });
+}
+
+function saveMaterial(editId) {
+  const orig = editId ? materials.find(x => x.id === editId) : null;
+  const data = {
+    id: editId || Date.now().toString(),
+    name: document.getElementById('mName').value.trim(),
+    type: document.getElementById('mType').value,
+    tags: document.getElementById('mTags').value.split(',').map(s=>s.trim()).filter(Boolean),
+    level: document.getElementById('mLevel').value,
+    note: document.getElementById('mNote').value.trim(),
+  };
+  // 编辑时保留原有字段
+  if (orig) {
+    if (orig.video) data.video = true;
+    if (orig.projectId) data.projectId = orig.projectId;
+    if (orig.projectName) data.projectName = orig.projectName;
+    if (orig.folderId) data.folderId = orig.folderId;
+  }
+  if (!data.name) { toast('请输入素材名称', 'warn'); return; }
+  if (editId) {
+    materials = materials.map(m => m.id === editId ? data : m);
+  } else {
+    materials.unshift(data);
+  }
+  saveLS('mat_data', materials);
+  closeModal();
+  renderMaterials();
+}
+
+function deleteMaterial(id) {
+  showConfirm('确认删除此素材？', () => {
+  const m = materials.find(x => x.id === id);
+  materials = materials.filter(m => m.id !== id);
+  saveLS('mat_data', materials);
+  if (m?.video) deleteVideoFromDB(id).catch(() => {});
+  renderMaterials();
+  toast('素材已删除', 'success');
+  });
+}
+
+function renderMaterials() {
+  const typeF = document.getElementById('matFilterType').value;
+  const nameF = document.getElementById('matSearch').value.trim().toLowerCase();
+
+  const grid = document.getElementById('materialGrid');
+  const empty = document.getElementById('materialEmpty');
+  const foldersEl = document.getElementById('materialFolders');
+  const bcEl = document.getElementById('matFolderBreadcrumb');
+
+  // 面包屑
+  if (currentFolderId) {
+    const fld = matFolders.find(f => f.id === currentFolderId);
+    bcEl.innerHTML = '<span onclick="backToRoot()" style="cursor:pointer;color:#6366f1;">📁 全部素材</span> <span style="color:#d1d5db;">/</span> <span style="color:#374151;font-weight:600;">' + (fld ? fld.name : '') + '</span> <button onclick="openVideoDropModal(\'' + currentFolderId + '\')" class="btn-sm btn-outline" style="margin-left:8px;padding:2px 10px;font-size:11px;">+ 视频导入</button>';
+  } else {
+    bcEl.innerHTML = '';
+  }
+
+  // 文件夹只在根目录显示
+  if (currentFolderId) {
+    foldersEl.innerHTML = '';
+    foldersEl.classList.add('hidden');
+  } else {
+    foldersEl.classList.remove('hidden');
+    const filteredFolders = matFolders.filter(f => {
+      if (typeF !== 'all' || nameF) return false; // 搜索/筛选时隐藏文件夹
+      return true;
+    });
+    if (filteredFolders.length === 0) {
+      foldersEl.innerHTML = '';
+      foldersEl.classList.add('hidden');
+    } else {
+      foldersEl.classList.remove('hidden');
+      foldersEl.innerHTML = filteredFolders.map(f => {
+        const cnt = materials.filter(m => m.folderId === f.id).length;
+        return '<div class="card p-4 cursor-pointer hover:border-brand-300 hover:shadow-md transition" onclick="openFolder(\'' + f.id + '\')">' +
+          '<div class="flex items-center gap-3">' +
+            '<div class="text-3xl">📂</div>' +
+            '<div class="flex-1 min-w-0">' +
+              '<div class="text-sm font-semibold truncate">' + f.name + '</div>' +
+              '<div class="text-xs text-gray-400 mt-0.5">' + cnt + ' 个素材' + (f.projectName ? ' · 📁 ' + f.projectName : '') + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="flex gap-2 mt-2" onclick="event.stopPropagation()">' +
+            '<button onclick="openFolderModal(\'' + f.id + '\')" class="text-xs text-brand-600 hover:underline">编辑</button>' +
+            '<button onclick="deleteFolder(\'' + f.id + '\')" class="text-xs text-danger hover:underline">删除</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+  }
+
+  // 素材列表：有搜索条件时跨所有文件夹搜索，否则按当前文件夹过滤
+  const isSearching = typeF !== 'all' || nameF;
+  let list = isSearching ? materials.slice() : materials.filter(m => currentFolderId ? m.folderId === currentFolderId : !m.folderId);
+  if (typeF !== 'all') list = list.filter(m => m.type === typeF);
+  if (nameF) list = list.filter(m => {
+    const hay = ((m.name||'') + ' ' + (m.tags||[]).join(' ') + ' ' + (m.note||'') + ' ' + (m.projectName||'')).toLowerCase();
+    return hay.includes(nameF);
+  });
+
+  if (list.length === 0) {
+    grid.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  grid.innerHTML = list.map(m => {
+    const tags = (m.tags||[]).map((t,i) => '<span class="tag ' + TAG_COLORS[i%TAG_COLORS.length] + '">' + t + '</span>').join(' ');
+    const levelTag = m.level === 'hot' ? '<span class="tag bg-red-100 text-red-600">🔥 爆款</span>' : m.level === 'potential' ? '<span class="tag bg-amber-100 text-amber-600">⭐ 潜力</span>' : '';
+    let mediaHtml;
+    if (m.video) {
+      mediaHtml = '<div id="mat_video_' + m.id + '" class="h-44 bg-black flex items-center justify-center"><div class="text-sm text-gray-400">加载中...</div></div>';
+    } else {
+      mediaHtml = '<div class="h-36 bg-surface-100 flex items-center justify-center overflow-hidden">' +
+        '<div class="text-3xl text-gray-300">🖼</div>' +
+      '</div>';
+    }
+    return '<div class="card overflow-hidden">' +
+      mediaHtml +
+      '<div class="p-4">' +
+        '<div class="flex items-center gap-2 mb-2 flex-wrap">' +
+          '<span class="tag ' + (m.type==='own'?'bg-brand-100 text-brand-700':'bg-orange-100 text-orange-700') + '">' + (m.type==='own'?'自家':'竞品') + '</span>' +
+          (m.video ? '<span class="tag bg-purple-100 text-purple-700">视频</span>' : '') +
+          levelTag +
+          '<span class="font-medium text-sm truncate">' + m.name + '</span>' +
+        '</div>' +
+        (tags ? '<div class="flex flex-wrap gap-1 mb-2">' + tags + '</div>' : '') +
+        (m.projectName ? '<div class="text-xs text-gray-400 mb-1">📁 ' + m.projectName + '</div>' : '') +
+        (m.note ? '<div class="text-xs text-gray-400 truncate">' + m.note + '</div>' : '') +
+        '<div class="flex gap-2 mt-3">' +
+          '<button onclick="openMaterialModal(\'' + m.id + '\')" class="text-xs text-brand-600 hover:underline">编辑</button>' +
+          '<button onclick="deleteMaterial(\'' + m.id + '\')" class="text-xs text-danger hover:underline">删除</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  list.filter(m => m.video).forEach(m => {
+    getVideoFromDB(m.id).then(file => {
+      const wrap = document.getElementById('mat_video_' + m.id);
+      if (!wrap || !file) {
+        if (wrap) wrap.innerHTML = '<div class="text-3xl text-gray-300">🎬</div>';
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      wrap.outerHTML = buildVideoPlayerHTML('mvid_' + m.id, url, false);
+      setTimeout(() => vpBindUpdate('mvid_' + m.id), 150);
+    });
+  });
+}
+
+// ===== 数据分析 =====
+let analyticsData = loadLS('ana_data', []);
+
+const ANA_COL_MAP = {
+  date:       ['日期','date','投放日期','统计日期','时间','创建时间','stat_date'],
+  platform:   ['平台','platform','渠道','投放平台','平台类型','平台名称','所属平台'],
+  matName:    ['素材名称','素材','ad名称','广告名称','计划名称','素材标题','ad_name','creative_name','素材名','素材视频名称'],
+  cost:       ['消耗','cost','花费','广告消耗','广告费','广告花费','消耗金额','整体消耗'],
+  gmv:        ['GMV','gmv','付款金额','支付金额','成交金额','销售额','订单金额','交易金额','实付金额','付款','实付','金额','amount','pay_amount','商品金额','整体成交金额'],
+  show:       ['展现','展示','show','展现量','展示量','曝光','曝光量','impressions','展示次数'],
+  click:      ['点击','click','点击量','clicks','点击次数'],
+  conv:       ['转化','conv','转化数','订单数','订单','成交数','conversions','转化量','转化率'],
+  ctr3s:      ['3s完播率','3秒完播率','3s完播','3秒完播','3s_play_rate','3s_play','前三秒完播率'],
+  playRate:   ['完播率','播放完成率','完播','play_rate','completion_rate','playback_rate'],
+};
+
+function matchAnaColumn(header) {
+  const h = String(header).trim().toLowerCase();
+  // 第一轮：精确匹配
+  for (const [key, aliases] of Object.entries(ANA_COL_MAP)) {
+    if (aliases.some(a => h === a.toLowerCase())) return key;
+  }
+  // 第二轮：包含匹配（仅限长度≥3的别名，避免"平台"误匹配"电商平台补贴金额"）
+  for (const [key, aliases] of Object.entries(ANA_COL_MAP)) {
+    if (aliases.some(a => a.length >= 3 && h.includes(a.toLowerCase()))) return key;
+  }
+  return null;
+}
+
+function parseAnaNum(val) {
+  if (val == null || val === '') return 0;
+  if (typeof val === 'number') return val;
+  let s = String(val).trim().replace(/[,%¥$\s]/g, '');
+  let multiplier = 1;
+  if (/亿$/.test(s)) { multiplier = 1e8; s = s.replace(/亿$/, ''); }
+  if (/万$/.test(s)) { multiplier = 1e4; s = s.replace(/万$/, ''); }
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n * multiplier;
+}
+
+function parseAnaPercent(val) {
+  if (val == null || val === '') return 0;
+  if (typeof val === 'number') {
+    return (val > 0 && val <= 1) ? val * 100 : val;
+  }
+  let s = String(val).trim().replace(/%/g, '').replace(/\s/g, '');
+  const n = parseFloat(s);
+  if (isNaN(n)) return 0;
+  return (n > 0 && n <= 1) ? n * 100 : n;
+}
+
+function parseAnaDate(val) {
+  if (val == null || val === '') return '';
+  if (val instanceof Date) return val.toISOString().slice(0, 10);
+  if (typeof val === 'number') {
+    const d = new Date(Date.UTC(1899, 11, 30) + val * 86400000);
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  }
+  const s = String(val).trim();
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  return s.slice(0, 10);
+}
+
+// 拖拽区域事件绑定
+document.addEventListener('DOMContentLoaded', () => {
+  const zone = document.getElementById('anaDropZone');
+  if (!zone) return;
+  zone.addEventListener('click', () => document.getElementById('anaFileInput').click());
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('border-brand-500','bg-brand-50/70'); });
+  zone.addEventListener('dragleave', () => { zone.classList.remove('border-brand-500','bg-brand-50/70'); });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('border-brand-500','bg-brand-50/70');
+    const file = e.dataTransfer.files[0];
+    if (file) parseAnaExcel(file);
+  });
+});
+
+function handleAnaFile(e) {
+  const file = e.target.files[0];
+  if (file) parseAnaExcel(file);
+  e.target.value = '';
+}
+
+function parseAnaExcel(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      let rows = [];
+
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        const text = new TextDecoder('utf-8').decode(data);
+        const wb = XLSX.read(text, { type: 'string' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      } else {
+        const wb = XLSX.read(data, { type: 'array', cellDates: true, cellNF: true, cellText: false, codepage: 936 });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      }
+
+      if (rows.length < 2) { toast('文件没有足够的数据行', 'error'); return; }
+
+      const headers = rows[0].map(h => String(h).trim());
+      const colMap = {};
+      headers.forEach((h, i) => { const m = matchAnaColumn(h); if (m && !colMap[m]) colMap[m] = i; });
+
+      const mappedCount = Object.keys(colMap).length;
+      if (mappedCount < 2) { toast('未能识别足够的数据列，请检查表头', 'error'); return; }
+
+      const items = [];
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.every(c => c === '' || c == null)) continue;
+        const item = {
+          id: 'ana' + Date.now() + '_' + i,
+          date: colMap.date != null ? parseAnaDate(row[colMap.date]) : '',
+          platform: colMap.platform != null ? String(row[colMap.platform] || '').trim().replace(/平台/g, '') : '',
+          matName: colMap.matName != null ? String(row[colMap.matName] || '').trim() : '',
+          cost: colMap.cost != null ? parseAnaNum(row[colMap.cost]) : 0,
+          gmv: colMap.gmv != null ? parseAnaNum(row[colMap.gmv]) : 0,
+          show: colMap.show != null ? parseAnaNum(row[colMap.show]) : 0,
+          click: colMap.click != null ? parseAnaNum(row[colMap.click]) : 0,
+          conv: colMap.conv != null ? parseAnaNum(row[colMap.conv]) : 0,
+          ctr3s: colMap.ctr3s != null ? parseAnaPercent(row[colMap.ctr3s]) : 0,
+          playRate: colMap.playRate != null ? parseAnaPercent(row[colMap.playRate]) : 0,
+        };
+        if (item.date || item.matName || item.cost || item.gmv) items.push(item);
+      }
+
+      if (items.length === 0) { toast('未解析到有效数据行', 'error'); return; }
+
+      showAnaPreview(items, headers, colMap);
+    } catch(err) {
+      console.error(err);
+      toast('解析失败：' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function showAnaPreview(items, headers, colMap) {
+  const preview = document.getElementById('anaPreview');
+  const mappedCount = Object.keys(colMap).length;
+
+  // 汇总
+  let totalCost = 0, totalGMV = 0, totalShow = 0, totalClick = 0, totalConv = 0;
+  let totalCtr3sCount = 0, totalPlayCount = 0;
+  items.forEach(d => {
+    totalCost += d.cost; totalGMV += d.gmv; totalShow += d.show; totalClick += d.click; totalConv += d.conv;
+    totalCtr3sCount += d.show * d.ctr3s / 100;
+    totalPlayCount += d.show * d.playRate / 100;
+  });
+  const roi = totalCost > 0 ? (totalGMV / totalCost).toFixed(2) : '--';
+  const ctr = totalShow > 0 ? (totalClick / totalShow * 100).toFixed(2) : '--';
+  const cvr = totalClick > 0 ? (totalConv / totalClick * 100).toFixed(2) : '--';
+  const avgCtr3s = totalShow > 0 ? (totalCtr3sCount / totalShow * 100).toFixed(2) : '--';
+  const avgPlayRate = totalShow > 0 ? (totalPlayCount / totalShow * 100).toFixed(2) : '--';
+
+  let html = '<div class="card p-5">' +
+    '<div class="flex items-center justify-between mb-4">' +
+      '<h3 class="font-semibold text-sm">解析结果预览（' + items.length + ' 条）</h3>' +
+      '<div class="flex gap-2">' +
+        '<button onclick="confirmAnaImport()" class="btn-sm btn-primary">清空并导入</button>' +
+        '<button onclick="document.getElementById(\'anaPreview\').classList.add(\'hidden\')" class="text-xs text-gray-400 hover:text-gray-600">收起</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="grid grid-cols-3 gap-3 mb-4">' +
+      '<div class="card p-3 text-center"><div class="text-xs text-gray-400">消耗</div><div class="text-base font-bold text-brand-600">¥' + fmtMoney(totalCost) + '</div></div>' +
+      '<div class="card p-3 text-center"><div class="text-xs text-gray-400">GMV</div><div class="text-base font-bold text-brand-600">¥' + fmtMoney(totalGMV) + '</div></div>' +
+      '<div class="card p-3 text-center"><div class="text-xs text-gray-400">ROI</div><div class="text-base font-bold ' + (parseFloat(roi)>=1?'text-success':'text-danger') + '">' + roi + '</div></div>' +
+      '<div class="card p-3 text-center"><div class="text-xs text-gray-400">展示数</div><div class="text-base font-bold">' + totalShow.toLocaleString() + '</div></div>' +
+      '<div class="card p-3 text-center"><div class="text-xs text-gray-400">点击数</div><div class="text-base font-bold">' + totalClick.toLocaleString() + '</div></div>' +
+      '<div class="card p-3 text-center"><div class="text-xs text-gray-400">点击率</div><div class="text-base font-bold">' + ctr + '%</div></div>' +
+      '<div class="card p-3 text-center"><div class="text-xs text-gray-400">转化率</div><div class="text-base font-bold">' + cvr + '%</div></div>' +
+      '<div class="card p-3 text-center"><div class="text-xs text-gray-400">3s完播率</div><div class="text-base font-bold text-purple-600">' + avgCtr3s + '%</div></div>' +
+      '<div class="card p-3 text-center"><div class="text-xs text-gray-400">完播率</div><div class="text-base font-bold text-purple-600">' + avgPlayRate + '%</div></div>' +
+    '</div>';
+
+  // 列映射
+  html += '<div class="mb-4"><div class="text-xs text-gray-400 mb-2">列映射（识别到 ' + mappedCount + ' 列）</div><div class="flex flex-wrap gap-2">';
+  Object.entries(colMap).forEach(([key, idx]) => {
+    html += '<span class="tag bg-brand-100 text-brand-700">' + key + ' ← ' + headers[idx] + '</span>';
+  });
+  html += '</div></div>';
+
+  // 预览表格（可滚动，表头固定）
+  html += '<div class="overflow-auto" style="max-height:400px"><table class="w-full text-xs"><thead style="position:sticky;top:0;z-index:10"><tr class="text-gray-400 border-b" style="background:#fff">';
+  ['日期','平台','素材名称','消耗','GMV','展示','点击','转化','3s完播率','完播率'].forEach(h => {
+    html += '<th class="py-1 px-2 text-right font-medium">' + h + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  items.forEach(d => {
+    html += '<tr class="border-b border-surface-100">' +
+      '<td class="py-1 px-2 text-right">' + d.date + '</td>' +
+      '<td class="py-1 px-2 text-right">' + (d.platform||'').replace(/平台/g,'') + '</td>' +
+      '<td class="py-1 px-2 text-right max-w-[120px] truncate" title="' + d.matName + '">' + d.matName + '</td>' +
+      '<td class="py-1 px-2 text-right">¥' + fmt(d.cost,2) + '</td>' +
+      '<td class="py-1 px-2 text-right">¥' + fmt(d.gmv,2) + '</td>' +
+      '<td class="py-1 px-2 text-right">' + d.show + '</td>' +
+      '<td class="py-1 px-2 text-right">' + d.click + '</td>' +
+      '<td class="py-1 px-2 text-right">' + d.conv + '</td>' +
+      '<td class="py-1 px-2 text-right">' + (d.ctr3s ? d.ctr3s.toFixed(2) + '%' : '--') + '</td>' +
+      '<td class="py-1 px-2 text-right">' + (d.playRate ? d.playRate.toFixed(2) + '%' : '--') + '</td>' +
+    '</tr>';
+  });
+  html += '</tbody></table></div>';
+
+  html += '<div class="flex gap-3 mt-4">' +
+    '<button onclick="confirmAnaImport()" class="btn-sm btn-primary">清空并导入</button>' +
+    '<button onclick="document.getElementById(\'anaPreview\').classList.add(\'hidden\')" class="btn-sm btn-outline">取消</button>' +
+  '</div></div>';
+
+  preview.innerHTML = html;
+  preview.classList.remove('hidden');
+  preview._items = items;
+}
+
+function confirmAnaImport() {
+  const items = document.getElementById('anaPreview')._items;
+  if (!items || items.length === 0) return;
+  analyticsData = items;
+  saveLS('ana_data', analyticsData);
+  document.getElementById('anaPreview').classList.add('hidden');
+  renderAnalytics();
+  toast('成功导入 ' + items.length + ' 条数据', 'success');
+}
+
+function openAnalyticsModal(editId) {
+  const d = editId ? analyticsData.find(x => x.id === editId) : null;
+  showModal(
+    '<h3 class="font-semibold text-base mb-4">' + (d ? '编辑数据' : '录入数据') + '</h3>' +
+    '<div class="space-y-3">' +
+      '<div class="grid grid-cols-2 gap-3">' +
+        '<div><label class="text-sm text-gray-500">日期</label><input id="anDate" type="date" value="' + (d?d.date:new Date().toISOString().slice(0,10)) + '" class="input-field mt-1"></div>' +
+        '<div><label class="text-sm text-gray-500">平台</label><select id="anPlatform" class="input-field mt-1"><option>千川</option><option>抖音CID</option><option>磁力金牛</option><option>小红书</option><option>腾讯广告</option><option>其他</option></select></div>' +
+      '</div>' +
+      '<div><label class="text-sm text-gray-500">素材名称</label><input id="anMatName" value="' + (d?d.matName:'') + '" placeholder="素材/计划名称" class="input-field mt-1"></div>' +
+      '<div class="grid grid-cols-2 gap-3">' +
+        '<div><label class="text-sm text-gray-500">消耗（元）</label><input id="anCost" type="number" step="0.01" value="' + (d?d.cost:'') + '" class="input-field mt-1"></div>' +
+        '<div><label class="text-sm text-gray-500">GMV（元）</label><input id="anGMV" type="number" step="0.01" value="' + (d?d.gmv:'') + '" class="input-field mt-1"></div>' +
+      '</div>' +
+      '<div class="grid grid-cols-3 gap-3">' +
+        '<div><label class="text-sm text-gray-500">展示数</label><input id="anShow" type="number" value="' + (d?d.show:'') + '" class="input-field mt-1"></div>' +
+        '<div><label class="text-sm text-gray-500">点击数</label><input id="anClick" type="number" value="' + (d?d.click:'') + '" class="input-field mt-1"></div>' +
+        '<div><label class="text-sm text-gray-500">转化数</label><input id="anConv" type="number" value="' + (d?d.conv:'') + '" class="input-field mt-1"></div>' +
+      '</div>' +
+      '<div class="grid grid-cols-2 gap-3">' +
+        '<div><label class="text-sm text-gray-500">3s完播率（%）</label><input id="anCtr3s" type="number" step="0.01" value="' + (d?d.ctr3s:'') + '" placeholder="如 35.5" class="input-field mt-1"></div>' +
+        '<div><label class="text-sm text-gray-500">完播率（%）</label><input id="anPlayRate" type="number" step="0.01" value="' + (d?d.playRate:'') + '" placeholder="如 12.3" class="input-field mt-1"></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="flex gap-3 mt-5">' +
+      '<button onclick="saveAnalytics(\'' + (editId||'') + '\')" class="btn-sm btn-primary">保存</button>' +
+      '<button onclick="closeModal()" class="btn-sm btn-outline">取消</button>' +
+    '</div>'
+  );
+  if (d) document.getElementById('anPlatform').value = d.platform;
+}
+
+function saveAnalytics(editId) {
+  const data = {
+    id: editId || Date.now().toString(),
+    date: document.getElementById('anDate').value,
+    platform: document.getElementById('anPlatform').value,
+    matName: document.getElementById('anMatName').value.trim(),
+    cost: parseFloat(document.getElementById('anCost').value) || 0,
+    gmv: parseFloat(document.getElementById('anGMV').value) || 0,
+    show: parseInt(document.getElementById('anShow').value) || 0,
+    click: parseInt(document.getElementById('anClick').value) || 0,
+    conv: parseInt(document.getElementById('anConv').value) || 0,
+    ctr3s: parseFloat(document.getElementById('anCtr3s').value) || 0,
+    playRate: parseFloat(document.getElementById('anPlayRate').value) || 0,
+  };
+  if (!data.matName) { toast('请输入素材名称', 'warn'); return; }
+  if (editId) {
+    analyticsData = analyticsData.map(d => d.id === editId ? data : d);
+  } else {
+    analyticsData.unshift(data);
+  }
+  saveLS('ana_data', analyticsData);
+  closeModal();
+  renderAnalytics();
+  toast(editId ? '数据已更新' : '数据已录入', 'success');
+}
+
+function deleteAnalytics(id) {
+  analyticsData = analyticsData.filter(d => d.id !== id);
+  saveLS('ana_data', analyticsData);
+  renderAnalytics();
+  toast('已删除', 'success');
+}
+
+function toggleAnaSelectAll(masterChk) {
+  document.querySelectorAll('.ana-row-chk').forEach(chk => { chk.checked = masterChk.checked; });
+  updateAnaSelCount();
+}
+
+function updateAnaSelCount() {
+  const all = document.querySelectorAll('.ana-row-chk');
+  const checked = document.querySelectorAll('.ana-row-chk:checked');
+  const btn = document.getElementById('anaBatchDeleteBtn');
+  const countEl = document.getElementById('anaSelCount');
+  if (checked.length > 0) {
+    btn.classList.remove('hidden');
+    countEl.classList.remove('hidden');
+    countEl.textContent = '已选 ' + checked.length + ' 条';
+  } else {
+    btn.classList.add('hidden');
+    countEl.classList.add('hidden');
+  }
+  const masterChk = document.getElementById('anaSelAll');
+  if (masterChk) {
+    masterChk.checked = all.length > 0 && checked.length === all.length;
+    masterChk.indeterminate = checked.length > 0 && checked.length < all.length;
+  }
+}
+
+function batchDeleteAnalytics() {
+  const checked = document.querySelectorAll('.ana-row-chk:checked');
+  if (checked.length === 0) { toast('请先选择要删除的数据', 'warn'); return; }
+  showConfirm('确认删除选中的 ' + checked.length + ' 条数据？', () => {
+    const delIds = new Set();
+    checked.forEach(chk => { delIds.add(chk.dataset.id); });
+    analyticsData = analyticsData.filter(d => !delIds.has(d.id));
+    saveLS('ana_data', analyticsData);
+    renderAnalytics();
+    toast('已删除 ' + delIds.size + ' 条数据', 'success');
+  });
+}
+
+function renderAnalytics() {
+  const period = parseInt(document.getElementById('anaPeriod').value);
+  const platF = document.getElementById('anaPlatform').value;
+  const search = document.getElementById('anaSearch').value.trim().toLowerCase();
+  const now = new Date();
+  const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - period);
+  cutoff.setHours(0, 0, 0, 0);
+
+  let filtered = analyticsData.filter(d => {
+    if (period === 0) return true;
+    if (!d.date) return true;
+    const dd = new Date(d.date);
+    if (isNaN(dd.getTime())) return true;
+    return dd >= cutoff;
+  });
+  if (platF !== 'all') filtered = filtered.filter(d => (d.platform||'').replace(/平台/g,'') === platF);
+  if (search) filtered = filtered.filter(d => d.matName.toLowerCase().includes(search));
+  filtered.sort((a,b) => a.date.localeCompare(b.date));
+
+  const emptyEl = document.getElementById('anaEmpty');
+  const contentEl = document.getElementById('anaContent');
+
+  if (filtered.length === 0) {
+    emptyEl.classList.remove('hidden');
+    contentEl.classList.add('hidden');
+    return;
+  }
+  emptyEl.classList.add('hidden');
+  contentEl.classList.remove('hidden');
+
+  // 汇总
+  const totalCost = filtered.reduce((s,d)=>s+(d.cost||0),0);
+  const totalGMV = filtered.reduce((s,d)=>s+(d.gmv||0),0);
+  const totalShow = filtered.reduce((s,d)=>s+(d.show||0),0);
+  const totalClick = filtered.reduce((s,d)=>s+(d.click||0),0);
+  const totalConv = filtered.reduce((s,d)=>s+(d.conv||0),0);
+  const roi = totalCost > 0 ? (totalGMV / totalCost).toFixed(2) : '0.00';
+  const ctr = totalShow > 0 ? (totalClick / totalShow * 100).toFixed(2) : '0.00';
+  const cvr = totalClick > 0 ? (totalConv / totalClick * 100).toFixed(2) : '0.00';
+
+  // 3s完播率/完播率 = 总完播数 / 总展示数（公式计算，非加权平均）
+  let totalCtr3sCount = 0, totalPlayCount = 0;
+  filtered.forEach(d => {
+    totalCtr3sCount += (d.show||0) * (d.ctr3s||0) / 100;
+    totalPlayCount += (d.show||0) * (d.playRate||0) / 100;
+  });
+  const avgCtr3s = totalShow > 0 ? (totalCtr3sCount / totalShow * 100).toFixed(2) : '0.00';
+  const avgPlayRate = totalShow > 0 ? (totalPlayCount / totalShow * 100).toFixed(2) : '0.00';
+
+  document.getElementById('anaSummary').innerHTML =
+    '<div class="card p-4 stat-card"><div class="text-xs text-gray-400 mb-1">消耗</div><div class="text-xl font-bold text-brand-600">¥' + fmtMoney(totalCost) + '</div></div>' +
+    '<div class="card p-4 stat-card"><div class="text-xs text-gray-400 mb-1">GMV</div><div class="text-xl font-bold text-brand-600">¥' + fmtMoney(totalGMV) + '</div></div>' +
+    '<div class="card p-4 stat-card"><div class="text-xs text-gray-400 mb-1">ROI</div><div class="text-xl font-bold ' + (parseFloat(roi)>=1?'text-success':'text-danger') + '">' + roi + '</div></div>' +
+    '<div class="card p-4 stat-card"><div class="text-xs text-gray-400 mb-1">展示数</div><div class="text-xl font-bold">' + totalShow.toLocaleString() + '</div></div>' +
+    '<div class="card p-4 stat-card"><div class="text-xs text-gray-400 mb-1">点击数</div><div class="text-xl font-bold">' + totalClick.toLocaleString() + '</div></div>' +
+    '<div class="card p-4 stat-card"><div class="text-xs text-gray-400 mb-1">点击率</div><div class="text-xl font-bold">' + ctr + '%</div></div>' +
+    '<div class="card p-4 stat-card"><div class="text-xs text-gray-400 mb-1">转化率</div><div class="text-xl font-bold">' + cvr + '%</div></div>' +
+    '<div class="card p-4 stat-card"><div class="text-xs text-gray-400 mb-1">3s完播率</div><div class="text-xl font-bold text-purple-600">' + avgCtr3s + '%</div></div>' +
+    '<div class="card p-4 stat-card"><div class="text-xs text-gray-400 mb-1">完播率</div><div class="text-xl font-bold text-purple-600">' + avgPlayRate + '%</div></div>';
+
+  // 明细表
+  const tbody = document.getElementById('anaTable');
+  tbody.innerHTML = filtered.slice().reverse().map(d => {
+    const dCost = d.cost || 0;
+    const dGMV = d.gmv || 0;
+    const dShow = d.show || 0;
+    const dClick = d.click || 0;
+    const dConv = d.conv || 0;
+    const dRoi = dCost > 0 ? (dGMV / dCost).toFixed(2) : '--';
+    const dCtr = dShow > 0 ? (dClick / dShow * 100).toFixed(2) + '%' : '--';
+    const dCvr = dClick > 0 ? (dConv / dClick * 100).toFixed(2) + '%' : '--';
+    const roiClass = dRoi !== '--' && parseFloat(dRoi) >= 1 ? 'text-success' : dRoi !== '--' ? 'text-danger' : '';
+    return '<tr class="border-b border-surface-100 hover:bg-surface-50">' +
+      '<td class="py-2 text-center"><input type="checkbox" class="ana-row-chk" data-id="' + d.id + '" onchange="updateAnaSelCount()"></td>' +
+      '<td class="py-2">' + (d.date || '') + '</td>' +
+      '<td class="text-center"><span class="tag bg-surface-100">' + (d.platform||'').replace(/平台/g,'') + '</span></td>' +
+      '<td class="max-w-[140px] truncate" title="' + (d.matName||'') + '">' + (d.matName||'') + '</td>' +
+      '<td class="text-right">¥' + fmt(dCost,2) + '</td>' +
+      '<td class="text-right">¥' + fmt(dGMV,2) + '</td>' +
+      '<td class="text-right ' + roiClass + '">' + dRoi + '</td>' +
+      '<td class="text-right">' + dShow.toLocaleString() + '</td>' +
+      '<td class="text-right">' + dClick.toLocaleString() + '</td>' +
+      '<td class="text-right">' + dCtr + '</td>' +
+      '<td class="text-right">' + dConv.toLocaleString() + '</td>' +
+      '<td class="text-right">' + dCvr + '</td>' +
+      '<td class="text-right">' + (d.ctr3s ? d.ctr3s.toFixed(2) + '%' : '--') + '</td>' +
+      '<td class="text-right">' + (d.playRate ? d.playRate.toFixed(2) + '%' : '--') + '</td>' +
+      '<td class="text-right"><button onclick="deleteAnalytics(\'' + d.id + '\')" class="text-xs text-danger hover:underline">删除</button></td>' +
+    '</tr>';
+  }).join('');
+
+  // 按日期聚合趋势
+  const dateMap = {};
+  filtered.forEach(d => {
+    const key = d.date;
+    if (!dateMap[key]) dateMap[key] = { cost:0, gmv:0, click:0, show:0, conv:0, ctr3sCount:0, playCount:0 };
+    dateMap[key].cost += d.cost || 0;
+    dateMap[key].gmv += d.gmv || 0;
+    dateMap[key].click += d.click || 0;
+    dateMap[key].show += d.show || 0;
+    dateMap[key].conv += d.conv || 0;
+    dateMap[key].ctr3sCount += (d.show||0) * (d.ctr3s||0) / 100;
+    dateMap[key].playCount += (d.show||0) * (d.playRate||0) / 100;
+  });
+  const dates = Object.keys(dateMap).sort();
+  const costArr = dates.map(dt => dateMap[dt].cost);
+  const gmvArr = dates.map(dt => dateMap[dt].gmv);
+  const roiArr = dates.map(dt => dateMap[dt].cost > 0 ? dateMap[dt].gmv / dateMap[dt].cost : 0);
+  const ctrArr = dates.map(dt => dateMap[dt].show > 0 ? dateMap[dt].click / dateMap[dt].show * 100 : 0);
+  const cvrArr = dates.map(dt => dateMap[dt].click > 0 ? dateMap[dt].conv / dateMap[dt].click * 100 : 0);
+  const ctr3sArr = dates.map(dt => dateMap[dt].show > 0 ? dateMap[dt].ctr3sCount / dateMap[dt].show * 100 : 0);
+  const playRateArr = dates.map(dt => dateMap[dt].show > 0 ? dateMap[dt].playCount / dateMap[dt].show * 100 : 0);
+
+  drawAnaLine('anaChart1', dates, [
+    { label:'消耗', values: costArr, color:'#4f46e5' },
+    { label:'GMV', values: gmvArr, color:'#10b981' }
+  ]);
+  drawAnaLine('anaChart2', dates, [
+    { label:'ROI', values: roiArr, color:'#f59e0b' }
+  ]);
+  drawAnaLine('anaChart3', dates, [
+    { label:'点击率%', values: ctrArr, color:'#8b5cf6' },
+    { label:'转化率%', values: cvrArr, color:'#ec4899' }
+  ]);
+  drawAnaLine('anaChart4', dates, [
+    { label:'3s完播率%', values: ctr3sArr, color:'#06b6d4' },
+    { label:'完播率%', values: playRateArr, color:'#f59e0b' }
+  ]);
+}
+
+function drawAnaLine(canvasId, labels, series) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const containerW = canvas.parentElement.clientWidth || 400;
+  const W = Math.max(300, containerW - 40);
+  const H = 200;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  if (labels.length === 0) {
+    ctx.fillStyle = '#94a3b8'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('暂无数据', W/2, H/2);
+    return;
+  }
+
+  const pad = { l: 60, r: 20, t: 25, b: 35 };
+  const gw = W - pad.l - pad.r, gh = H - pad.t - pad.b;
+  if (gw <= 0 || gh <= 0) return;
+
+  let allVals = series.flatMap(s => s.values);
+  let rawMax = Math.max(...allVals, 0);
+  let rawMin = Math.min(...allVals, 0);
+  let yMax = rawMax === 0 ? 1 : rawMax * 1.1;
+  let yMin = rawMin < 0 ? rawMin * 1.1 : 0;
+  let yRange = (yMax - yMin) || 1;
+
+  const n = labels.length;
+  const step = n > 1 ? gw / (n - 1) : 0;
+  const xOf = (i) => n > 1 ? pad.l + step * i : pad.l + gw / 2;
+  const yOf = (v) => pad.t + gh * (yMax - v) / yRange;
+
+  // 存储数据用于hover
+  const chartData = { labels, series, pad, gw, gh, W, H, n, step, xOf, yOf, yMax, yMin, yRange };
+  canvas._chartData = chartData;
+
+  // 网格线
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + gh * i / 4;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    const val = yMax - yRange * i / 4;
+    ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+    let labelStr;
+    if (val >= 10000) labelStr = (val / 10000).toFixed(1) + 'w';
+    else if (val >= 100) labelStr = Math.round(val).toString();
+    else labelStr = val.toFixed(1);
+    ctx.fillText(labelStr, pad.l - 6, y + 3);
+  }
+
+  // X轴标签
+  const showEvery = Math.max(1, Math.ceil(n / 8));
+  ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  labels.forEach((label, i) => {
+    if (i % showEvery === 0 || i === n - 1) {
+      ctx.fillText(String(label).slice(5), xOf(i), H - pad.b + 14);
+    }
+  });
+
+  // 折线 + 数据点
+  series.forEach(s => {
+    ctx.beginPath();
+    ctx.strokeStyle = s.color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    s.values.forEach((v, i) => {
+      const x = xOf(i), y = yOf(v);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    s.values.forEach((v, i) => {
+      const x = xOf(i), y = yOf(v);
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = s.color; ctx.fill();
+    });
+  });
+
+  // 图例
+  let lx = pad.l;
+  series.forEach(s => {
+    ctx.fillStyle = s.color;
+    ctx.fillRect(lx, 6, 12, 4);
+    ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText(s.label, lx + 16, 12);
+    lx += 100;
+  });
+
+  // hover tooltip（只绑定一次）
+  if (!canvas._hoverBound) {
+    canvas._hoverBound = true;
+    const tooltip = document.createElement('div');
+    tooltip.style.cssText = 'position:absolute;pointer-events:none;background:rgba(30,41,59,.92);color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;line-height:1.5;z-index:20;white-space:nowrap;display:none;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+    canvas.parentElement.style.position = 'relative';
+    canvas.parentElement.appendChild(tooltip);
+
+    canvas.addEventListener('mousemove', function(e) {
+      const cd = canvas._chartData;
+      if (!cd) return;
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      if (mx < cd.pad.l || mx > cd.W - cd.pad.r || my < cd.pad.t || my > cd.H - cd.pad.b) {
+        tooltip.style.display = 'none';
+        return;
+      }
+      // 找最近的x索引
+      let bestI = 0, bestDist = Infinity;
+      for (let i = 0; i < cd.n; i++) {
+        const dist = Math.abs(mx - cd.xOf(i));
+        if (dist < bestDist) { bestDist = dist; bestI = i; }
+      }
+      const label = cd.labels[bestI];
+      let html = '<div style="font-weight:600;margin-bottom:2px">' + String(label).slice(5) + '</div>';
+      cd.series.forEach(s => {
+        const v = s.values[bestI];
+        const vStr = v >= 10000 ? (v/10000).toFixed(1)+'w' : v.toFixed(2);
+        html += '<div style="color:' + s.color + '">' + s.label + ': ' + vStr + '</div>';
+      });
+      tooltip.innerHTML = html;
+      tooltip.style.display = 'block';
+      let tx = mx + 12, ty = my - 10;
+      if (tx + 120 > cd.W) tx = mx - 130;
+      if (ty < 0) ty = 0;
+      tooltip.style.left = tx + 'px';
+      tooltip.style.top = ty + 'px';
+    });
+    canvas.addEventListener('mouseleave', function() {
+      tooltip.style.display = 'none';
+    });
+  }
+}
+
+// ===== 项目管理 =====
+let projectData = loadLS('proj_data', []);
+
+const PROJ_STATUS_COLORS = { '筹备中': 'bg-gray-100 text-gray-600', '投放中': 'bg-green-100 text-green-700', '暂停': 'bg-yellow-100 text-yellow-700', '已结束': 'bg-red-100 text-red-600' };
+
+function calcDays() {
+  var start = document.getElementById('pStart').value;
+  var end = document.getElementById('pEnd').value;
+  var daysInput = document.getElementById('pDays');
+  if (!start || !end) { daysInput.value = ''; return; }
+  var d1 = new Date(start);
+  var d2 = new Date(end);
+  if (isNaN(d1) || isNaN(d2) || d2 < d1) { daysInput.value = ''; return; }
+  daysInput.value = Math.round((d2 - d1) / 86400000) + 1;
+}
+
+function openProjectModal(editId) {
+  const p = editId ? projectData.find(x => x.id === editId) : null;
+  const today = new Date().toISOString().slice(0, 10);
+  showModal(
+    '<h3 class="font-semibold text-base mb-4">' + (p ? '编辑项目' : '新建项目') + '</h3>' +
+    '<div class="space-y-3">' +
+      '<div><label class="text-sm text-gray-500">项目名称 *</label><input id="pName" value="' + (p?p.name:'') + '" placeholder="例如: 夏季大促-美妆专场" class="input-field mt-1"></div>' +
+      '<div class="grid grid-cols-2 gap-3">' +
+        '<div><label class="text-sm text-gray-500">投放平台</label><select id="pPlatform" class="input-field mt-1"><option>千川</option><option>抖音CID</option><option>磁力金牛</option><option>小红书</option><option>腾讯广告</option><option>其他</option></select></div>' +
+        '<div><label class="text-sm text-gray-500">项目状态</label><select id="pStatus" class="input-field mt-1"><option>筹备中</option><option>投放中</option><option>暂停</option><option>已结束</option></select></div>' +
+      '</div>' +
+      '<div class="grid grid-cols-2 gap-3">' +
+        '<div><label class="text-sm text-gray-500">总预算（元）</label><input id="pBudget" type="number" value="' + (p?p.budget:'') + '" placeholder="100000" class="input-field mt-1"></div>' +
+        '<div><label class="text-sm text-gray-500">目标ROI</label><input id="pTargetROI" type="number" step="0.1" value="' + (p?p.targetROI:'') + '" placeholder="2.0" class="input-field mt-1"></div>' +
+      '</div>' +
+      '<div class="grid grid-cols-2 gap-3">' +
+        '<div><label class="text-sm text-gray-500">投放天数</label><input id="pDays" type="number" value="' + (p?p.days:'') + '" placeholder="自动计算" class="input-field mt-1" readonly style="background:#f9fafb;"></div>' +
+        '<div><label class="text-sm text-gray-500">开始日期</label><input id="pStart" type="date" value="' + (p?p.startDate:today) + '" class="input-field mt-1" onchange="calcDays()"></div>' +
+      '</div>' +
+      '<div class="grid grid-cols-2 gap-3">' +
+        '<div><label class="text-sm text-gray-500">结束日期</label><input id="pEnd" type="date" value="' + (p?p.endDate:'') + '" class="input-field mt-1" onchange="calcDays()"></div>' +
+      '</div>' +
+      '<div><label class="text-sm text-gray-500">备注</label><textarea id="pNote" rows="2" class="input-field mt-1" placeholder="项目备注...">' + (p?p.note:'') + '</textarea></div>' +
+    '</div>' +
+    '<div class="flex gap-3 mt-5">' +
+      '<button onclick="saveProject(\'' + (editId||'') + '\')" class="btn-sm btn-primary">保存</button>' +
+      '<button onclick="closeModal()" class="btn-sm btn-outline">取消</button>' +
+    '</div>'
+  );
+  if (p) {
+    document.getElementById('pPlatform').value = p.platform;
+    document.getElementById('pStatus').value = p.status;
+  }
+  calcDays();
+}
+
+function saveProject(editId) {
+  const data = {
+    id: editId || Date.now().toString(),
+    name: document.getElementById('pName').value.trim(),
+    platform: document.getElementById('pPlatform').value,
+    status: document.getElementById('pStatus').value,
+    budget: parseFloat(document.getElementById('pBudget').value) || 0,
+    targetROI: parseFloat(document.getElementById('pTargetROI').value) || 0,
+    days: parseInt(document.getElementById('pDays').value) || 0,
+    startDate: document.getElementById('pStart').value,
+    endDate: document.getElementById('pEnd').value,
+    note: document.getElementById('pNote').value.trim(),
+  };
+  if (!data.name) { toast('请输入项目名称', 'warn'); return; }
+  if (editId) {
+    projectData = projectData.map(p => p.id === editId ? data : p);
+  } else {
+    projectData.unshift(data);
+  }
+  saveLS('proj_data', projectData);
+  closeModal();
+  renderProjects();
+  toast(editId ? '项目已更新' : '项目已创建', 'success');
+}
+
+function deleteProject(id) {
+  showConfirm('确认删除此项目？', () => {
+    projectData = projectData.filter(p => p.id !== id);
+    saveLS('proj_data', projectData);
+    renderProjects();
+    toast('项目已删除', 'success');
+  });
+}
+
+function openProjectActualModal(projectId) {
+  var p = projectData.find(function(x) { return x.id === projectId; });
+  if (!p) return;
+  showModal(
+    '<h3 class="font-semibold text-base mb-4">录入实际数据 — ' + p.name + '</h3>' +
+    '<div class="space-y-3">' +
+      '<div><label class="text-sm text-gray-500">实际消耗（元）</label><input id="paCost" type="number" step="0.01" value="' + (p.actualCost||'') + '" placeholder="如 50000" class="input-field mt-1" oninput="calcActualROI()"></div>' +
+      '<div><label class="text-sm text-gray-500">实际GMV（元）</label><input id="paGMV" type="number" step="0.01" value="' + (p.actualGMV||'') + '" placeholder="如 120000" class="input-field mt-1" oninput="calcActualROI()"></div>' +
+      '<div class="bg-surface-50 rounded-lg p-3"><div class="text-xs text-gray-400">自动计算ROI</div><div id="paROI" class="text-lg font-bold text-brand-600">' + (p.actualROI||'0.00') + '</div></div>' +
+      (p.budget ? '<div class="text-xs text-gray-400">预算: ¥' + fmtMoney(p.budget) + (p.targetROI ? ' · 目标ROI: ' + p.targetROI + ' · 目标GMV: ¥' + fmtMoney(p.budget*p.targetROI) : '') + '</div>' : '') +
+    '</div>' +
+    '<div class="flex gap-3 mt-5">' +
+      '<button onclick="saveProjectActual(\'' + projectId + '\')" class="btn-sm btn-primary">保存</button>' +
+      '<button onclick="closeModal()" class="btn-sm btn-outline">取消</button>' +
+    '</div>'
+  );
+}
+
+function calcActualROI() {
+  var cost = parseFloat(document.getElementById('paCost').value) || 0;
+  var gmv = parseFloat(document.getElementById('paGMV').value) || 0;
+  var roi = cost > 0 ? (gmv / cost) : 0;
+  document.getElementById('paROI').textContent = roi.toFixed(2);
+}
+
+function saveProjectActual(projectId) {
+  var cost = parseFloat(document.getElementById('paCost').value) || 0;
+  var gmv = parseFloat(document.getElementById('paGMV').value) || 0;
+  if (!cost && !gmv) { toast('请至少输入消耗或GMV', 'warn'); return; }
+  var roi = cost > 0 ? parseFloat((gmv / cost).toFixed(2)) : 0;
+  var p = projectData.find(function(x) { return x.id === projectId; });
+  if (!p) return;
+  p.actualCost = cost;
+  p.actualGMV = gmv;
+  p.actualROI = roi;
+  p.actualImportTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  saveLS('proj_data', projectData);
+  closeModal();
+  renderProjects();
+  toast('实际数据已保存', 'success');
+}
+
+function clearProjectActual(projectId) {
+  showConfirm('确认清除该项目的实际数据？', function() {
+    var p = projectData.find(function(x) { return x.id === projectId; });
+    if (!p) return;
+    delete p.actualCost;
+    delete p.actualGMV;
+    delete p.actualROI;
+    delete p.actualImportTime;
+    saveLS('proj_data', projectData);
+    renderProjects();
+    toast('实际数据已清除', 'success');
+  });
+}
+
+function calcProjectAnalysis(p) {
+  const result = { dailySpend: '--', expectGMV: '--', roi: '--', spentDays: '--', remainingDays: '--', progress: 0 };
+  // 自动推算天数：如果没填天数但有起止日期，从日期计算
+  var days = p.days;
+  if (!days && p.startDate && p.endDate) {
+    var d1 = new Date(p.startDate);
+    var d2 = new Date(p.endDate);
+    if (!isNaN(d1) && !isNaN(d2) && d2 >= d1) {
+      days = Math.round((d2 - d1) / 86400000) + 1;
+    }
+  }
+  // 日均消耗：预算 / 天数
+  if (p.budget && days) {
+    result.dailySpend = (p.budget / days).toFixed(2);
+  }
+  // 预期GMV：预算 × 目标ROI
+  if (p.budget && p.targetROI) {
+    result.expectGMV = (p.budget * p.targetROI).toFixed(2);
+  }
+  // ROI：有目标ROI就直接显示
+  if (p.targetROI) {
+    result.roi = p.targetROI.toFixed(2);
+  }
+  // 已投放天数 & 剩余天数
+  if (p.startDate && p.endDate) {
+    var start = new Date(p.startDate);
+    var end = new Date(p.endDate);
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (!isNaN(start) && !isNaN(end) && end >= start) {
+      var total = Math.round((end - start) / 86400000) + 1;
+      if (today < start) {
+        result.spentDays = 0;
+        result.remainingDays = total;
+        result.progress = 0;
+      } else if (today > end) {
+        result.spentDays = total;
+        result.remainingDays = 0;
+        result.progress = 100;
+      } else {
+        var spent = Math.round((today - start) / 86400000) + 1;
+        result.spentDays = spent;
+        result.remainingDays = total - spent;
+        result.progress = Math.round(spent / total * 100);
+      }
+    }
+  }
+  return result;
+}
+
+function renderProjects() {
+  const search = document.getElementById('projSearch').value.trim().toLowerCase();
+  let list = projectData;
+  if (search) list = list.filter(p => p.name.toLowerCase().includes(search) || p.platform.toLowerCase().includes(search) || (p.note||'').toLowerCase().includes(search));
+
+  const grid = document.getElementById('projectGrid');
+  const empty = document.getElementById('projectEmpty');
+
+  if (list.length === 0) {
+    grid.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  grid.innerHTML = list.map(p => {
+    const a = calcProjectAnalysis(p);
+    const statusCls = PROJ_STATUS_COLORS[p.status] || 'bg-gray-100 text-gray-600';
+    const platformIcon = { '千川':'📱', '抖音CID':'🎵', '磁力金牛':'🐂', '小红书':'📕', '腾讯广告':'🐧', '其他':'📡' }[p.platform] || '📡';
+
+    // 实际数据对比
+    var hasActual = p.actualCost != null || p.actualGMV != null;
+    var actualCost = p.actualCost || 0;
+    var actualGMV = p.actualGMV || 0;
+    var actualROI = p.actualROI || 0;
+    var budgetRate = p.budget > 0 ? (actualCost / p.budget * 100) : 0;
+    var gmvRate = (p.budget && p.targetROI && p.budget * p.targetROI > 0) ? (actualGMV / (p.budget * p.targetROI) * 100) : 0;
+    var roiRate = p.targetROI > 0 ? (actualROI / p.targetROI * 100) : 0;
+
+    function progressBar(label, rate, targetVal, actualVal, color) {
+      var clamped = Math.min(rate, 999);
+      var barColor = color || '#6366f1';
+      var displayRate = rate > 999 ? '999%+' : rate.toFixed(1) + '%';
+      var statusText = rate >= 100 ? '✅ 已达成' : rate >= 80 ? '⏳ 接近目标' : '📊 进行中';
+      var statusColor = rate >= 100 ? '#10b981' : rate >= 80 ? '#f59e0b' : '#6b7280';
+      return '<div style="margin-bottom:8px;">' +
+        '<div style="display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-bottom:3px;">' +
+          '<span>' + label + ' <b style="color:#374151;">¥' + fmtMoney(actualVal) + '</b> / <span style="color:#9ca3af;">¥' + fmtMoney(targetVal) + '</span></span>' +
+          '<span style="color:' + statusColor + ';font-weight:600;">' + displayRate + ' ' + statusText + '</span>' +
+        '</div>' +
+        '<div style="height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden;">' +
+          '<div style="height:100%;width:' + Math.min(clamped, 100) + '%;background:' + barColor + ';border-radius:3px;transition:width .3s;"></div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    var actualHtml = '';
+    if (hasActual) {
+      var roiColor = actualROI >= (p.targetROI || 0) ? '#10b981' : '#ef4444';
+      actualHtml = '<div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-3 mb-3" style="border:1px solid #e0e7ff;">' +
+        '<div class="flex items-center justify-between mb-2">' +
+          '<div class="text-xs font-semibold text-indigo-700">📋 实际数据</div>' +
+          '<div class="flex gap-2">' +
+            '<button onclick="openProjectActualModal(\'' + p.id + '\')" class="text-xs text-brand-600 hover:underline">重新录入</button>' +
+            '<button onclick="clearProjectActual(\'' + p.id + '\')" class="text-xs text-danger hover:underline">清除</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="grid grid-cols-3 gap-2 mb-3">' +
+          '<div class="bg-white rounded-lg p-2 text-center"><div class="text-xs text-gray-400">实际消耗</div><div class="text-sm font-bold text-red-500">¥' + fmtMoney(actualCost) + '</div></div>' +
+          '<div class="bg-white rounded-lg p-2 text-center"><div class="text-xs text-gray-400">实际GMV</div><div class="text-sm font-bold text-amber-600">¥' + fmtMoney(actualGMV) + '</div></div>' +
+          '<div class="bg-white rounded-lg p-2 text-center"><div class="text-xs text-gray-400">实际ROI</div><div class="text-sm font-bold" style="color:' + roiColor + ';">' + actualROI.toFixed(2) + '</div></div>' +
+        '</div>' +
+        '<div class="bg-white rounded-lg p-3">' +
+          '<div class="text-xs font-semibold text-gray-500 mb-2">🎯 目标完成度</div>' +
+          (p.budget ? progressBar('消耗 vs 预算', budgetRate, p.budget, actualCost, '#ef4444') : '') +
+          (p.budget && p.targetROI ? progressBar('GMV vs 目标GMV', gmvRate, p.budget * p.targetROI, actualGMV, '#f59e0b') : '') +
+          (p.targetROI ? progressBar('ROI vs 目标ROI', roiRate, p.targetROI, actualROI, '#6366f1') : '') +
+        '</div>' +
+        (p.actualImportTime ? '<div class="text-xs text-gray-400 mt-1">最后导入: ' + p.actualImportTime + '</div>' : '') +
+      '</div>';
+    }
+
+    return '<div class="card p-5">' +
+      '<div class="flex items-start justify-between mb-3">' +
+        '<div>' +
+          '<h4 class="font-semibold text-sm">' + p.name + '</h4>' +
+          '<div class="flex items-center gap-2 mt-1">' +
+            '<span class="text-xs">' + platformIcon + ' ' + p.platform + '</span>' +
+            '<span class="tag ' + statusCls + ' text-xs">' + p.status + '</span>' +
+          '</div>' +
+        '</div>' +
+        (p.targetROI ? '<div class="text-right bg-blue-50 rounded-lg px-3 py-1"><div class="text-xs text-gray-400">目标ROI</div><div class="text-lg font-bold text-brand-600">' + p.targetROI + '</div></div>' : '') +
+      '</div>' +
+      '<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500 mb-3">' +
+        (p.budget ? '<div>预算: <b class="text-gray-800">¥' + fmtMoney(p.budget) + '</b></div>' : '') +
+        (p.days ? '<div>投放天数: <b class="text-gray-800">' + p.days + '天</b></div>' : '') +
+        (p.startDate ? '<div>起始: ' + p.startDate + '</div>' : '') +
+        (p.endDate ? '<div>结束: ' + p.endDate + '</div>' : '') +
+      '</div>' +
+      '<div class="bg-surface-50 rounded-lg p-3 mb-3 space-y-1">' +
+        '<div class="text-xs font-semibold text-gray-600 mb-1">📊 自动解析</div>' +
+        '<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">' +
+          '<div>日均消耗: <b class="text-gray-800">¥' + a.dailySpend + '</b></div>' +
+          '<div>预期GMV: <b class="text-gray-800">¥' + (a.expectGMV !== '--' ? fmtMoney(Number(a.expectGMV)) : '--') + '</b></div>' +
+          '<div>ROI: <b class="' + (a.roi !== '--' && parseFloat(a.roi) >= 1 ? 'text-success' : a.roi !== '--' ? 'text-danger' : 'text-gray-800') + '">' + a.roi + '</b></div>' +
+          '<div>已投放: <b class="text-gray-800">' + a.spentDays + '天</b></div>' +
+          '<div>剩余: <b class="' + (a.remainingDays !== '--' && a.remainingDays <= 3 && a.remainingDays > 0 ? 'text-danger' : 'text-gray-800') + '">' + a.remainingDays + '天</b></div>' +
+        '</div>' +
+        (a.progress > 0 ? '<div style="margin-top:6px;"><div style="display:flex;justify-content:space-between;font-size:10px;color:#9ca3af;margin-bottom:2px;"><span>投放进度</span><span>' + a.progress + '%</span></div><div style="height:4px;background:#e5e7eb;border-radius:2px;overflow:hidden;"><div style="height:100%;width:' + a.progress + '%;background:linear-gradient(90deg,#3b82f6,#6366f1);border-radius:2px;"></div></div></div>' : '') +
+      '</div>' +
+      actualHtml +
+      (hasActual ? '' : '<button onclick="openProjectActualModal(\'' + p.id + '\')" class="btn-sm btn-outline w-full mb-3" style="border-style:dashed;">📊 录入实际数据（消耗/GMV）</button>') +
+      (p.note ? '<div class="text-xs text-gray-400 mb-2">📝 ' + p.note + '</div>' : '') +
+      '<div class="flex gap-2">' +
+        '<button onclick="openProjectModal(\'' + p.id + '\')" class="text-xs text-brand-600 hover:underline">编辑</button>' +
+        '<button onclick="deleteProject(\'' + p.id + '\')" class="text-xs text-danger hover:underline">删除</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// ===== AI 浮动机器人 =====
+
+var aiMode = 'script';
+var DEFAULT_AI_KEY = 'sk-7c09f8f01b49412f90fa6e5fe26b16a0';
+var aiPopupOpen = false;
+var botDragData = null;
+
+var AI_PROMPTS = {
+  script: {
+    title: '输入脚本内容',
+    hint: '将脚本拆解为结构、卖点、痛点、风险点四维度',
+    placeholder: '在此粘贴爆款视频脚本、文案内容...\n\n例如：\n【开场】你知道XX产品为什么这么火吗？\n【产品介绍】这款产品采用了...',
+    system: '你是一位资深电商信息流投放操盘手和脚本分析师。请对用户提供的脚本/文案内容进行深度拆解分析。\n\n请严格按照以下四个维度输出，每个维度用 Markdown 格式：\n\n## 一、脚本结构\n拆解脚本的整体框架（开场钩子、产品介绍、信任背书、行动号召等），列出每个段落的作用和时长占比建议。\n\n## 二、核心卖点\n提取脚本中涉及的产品卖点，每个卖点用一句话概括，并评估其说服力强度（强/中/弱）。\n\n## 三、用户痛点\n分析脚本触达的用户痛点，说明每个痛点对应的用户群体和心理机制。\n\n## 四、风险点\n指出脚本中可能存在的问题：合规风险、夸大宣传、逻辑漏洞、转化断点等，并给出改进建议。\n\n要求：\n- 分析要具体、有深度，不要泛泛而谈\n- 如果脚本较短或信息不足，也要基于现有内容尽力分析\n- 用中文回复',
+    examples: [
+      { label: '美妆带货脚本', text: '【开场】姐妹们！这款面霜我用了三周，毛孔肉眼可见地变细了！\n【痛点】你是不是也花了大价钱买面霜，却总觉得没效果？那是因为你没有选对成分！\n【产品介绍】这款面霜含有5%烟酰胺+2%玻色因，分子小渗透快，三天就能看到提亮效果。\n【信任背书】皮肤科医生推荐，某书10万+真实反馈，复购率高达78%。\n【价格】原价399，今天直播间到手价只要89！还送同款洁面！\n【行动号召】左下角小黄车，只剩最后200单，抢完恢复原价！' },
+      { label: '食品带货脚本', text: '【开场】这个零食我一周买了5次，根本停不下来！\n【产品介绍】零添加蔗糖，纯果蔬制作，一包才30大卡，健身党放心吃。\n【痛点】嘴馋又怕胖？普通零食一口下去半天的卡路里白练了。\n【信任】检测报告齐全，孕妈都能吃。月销10万+。\n【价格】9.9三包，拍一发五，今天最后一天！\n【行动号召】点击购物车，手慢无！' }
+    ]
+  },
+  meeting: {
+    title: '输入会议纪要',
+    hint: '从会议纪要中提取行动项（负责人/任务/截止时间）',
+    placeholder: '在此粘贴会议纪要内容...\n\n例如：\n会议时间：2024-01-15\n参会人员：张三、李四、王五\n会议内容：\n1. 关于XX项目...',
+    system: '你是一位高效的会议助理。请从用户提供的会议纪要中提取所有行动项（Action Items）。\n\n请严格按照以下格式输出 Markdown 表格：\n\n## 行动项清单\n\n| 序号 | 任务描述 | 负责人 | 截止时间 | 优先级 |\n|------|---------|--------|---------|--------|\n| 1 | xxx | xxx | xxx | 高/中/低 |\n\n## 会议要点摘要\n用3-5句话概括会议核心内容和关键决策。\n\n## 待确认事项\n列出会议中未明确但需要后续确认的事项。\n\n要求：\n- 行动项要具体可执行\n- 如果纪要中没有明确负责人或时间，标注"待定"\n- 优先级根据任务紧迫性判断\n- 用中文回复',
+    examples: [
+      { label: '投放周会纪要', text: '会议时间：2024-06-15 14:00\n参会人员：张三（投放组长）、李四（投手）、王五（素材编导）、赵六（数据分析）\n\n会议内容：\n1. 张三汇报上周整体消耗情况，总消耗12万，GMV 35万，ROI 2.9，比上周增长15%。\n2. 李四反馈巨量引擎账户A的3条跑量素材已经开始衰退，需要王五本周产出5条新素材替换。\n3. 王五提出新素材方向：夏天场景+清凉感，下周一前给到脚本。\n4. 赵六分析发现晚间8-10点转化率最高，建议加大这个时段的预算分配。\n5. 张三决定下周起把A账户晚间预算从5000提升到8000。\n6. 李四提到B账户的千川投放素材审核一直被拒，需要排查原因。\n\n会议结论：下周重点优化素材更新和时段预算调整。' }
+    ]
+  },
+  custom: {
+    title: '输入待分析内容',
+    hint: '自由输入分析需求，AI 将自动理解并回复',
+    placeholder: '在此粘贴任何需要分析的内容...\n\n可以在内容开头写明你的分析需求，例如：\n请分析这段文案的转化逻辑并给出优化建议：\n...',
+    system: '你是一位电商信息流投放领域的AI助手。请根据用户输入的内容进行分析和回复。\n\n要求：\n- 用中文回复\n- 使用 Markdown 格式输出\n- 分析要有针对性，给出可落地的建议\n- 如果用户没有明确分析方向，默认从投放效果优化角度进行分析',
+    examples: [
+      { label: '竞品文案分析', text: '请分析以下竞品文案的转化逻辑，并给出我可以借鉴的点和优化建议：\n\n"这款洗衣液去污力是普通洗衣液的3倍，只需一勺就能洗净全家衣物。植物配方，婴儿衣物也能放心洗。今天下单买一送三，限量500份。"' },
+      { label: '投放数据诊断', text: '我最近一周的投放数据如下，请帮我诊断问题并给出优化建议：\n\n总消耗：8.5万\n总GMV：15.2万\nROI：1.79\n展示数：320万\n点击数：8.6万\n点击率：2.69%\n转化数：1200\n转化率：1.4%\n完播率：18%\n\n平均客单价126元，主推款利润率35%。' }
+    ]
+  },
+  chat: {
+    title: 'AI 对话',
+    hint: '多轮对话，支持上下文记忆，可以问我任何投放相关问题',
+    placeholder: '输入你的问题，例如：千川和巨量引擎有什么区别？',
+    system: '你是DuMate，一位专业的电商信息流投放AI助手，精通千川、巨量引擎、磁力金牛、小红书、腾讯广告等主流投放平台。你可以回答投放策略、素材创意、数据分析、人群定向、出价优化等各类问题。\n\n要求：\n- 用中文回复\n- 回复简洁实用，给出可落地的建议\n- 可以使用 Markdown 格式让回复更清晰\n- 如果用户问的不是投放相关问题，也可以正常对话，但适当引导回投放领域',
+    examples: [
+      { label: '千川入门', text: '千川投放新手该怎么入门？需要掌握哪些核心概念？' },
+      { label: '素材衰退怎么办', text: '我的跑量素材这两天数据下滑明显，消耗掉了但转化也掉了，该怎么处理？' },
+      { label: '出价策略', text: '千川计划冷启动阶段出价多少合适？什么时候该提价什么时候该降价？' }
+    ]
+  }
+};
+
+// --- 拖拽逻辑 ---
+var botDragMoved = false; // 记录本次拖拽是否真的移动过
+var chatHistory = []; // 多轮对话历史 [{role, content}]
+
+function startDragBot(e) {
+  e.preventDefault();
+  botDragMoved = false;
+  var bot = document.getElementById('aiBot');
+  var touch = e.touches ? e.touches[0] : e;
+  var rect = bot.getBoundingClientRect();
+  botDragData = {
+    startX: touch.clientX,
+    startY: touch.clientY,
+    origLeft: rect.left,
+    origTop: rect.top,
+    moved: false,
+    isTouch: !!e.touches
+  };
+  bot.style.transition = 'none';
+  if (botDragData.isTouch) {
+    document.addEventListener('touchmove', onDragMove, { passive: false });
+    document.addEventListener('touchend', onDragEnd);
+  } else {
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', onDragEnd);
+  }
+}
+
+function onDragMove(e) {
+  if (!botDragData) return;
+  e.preventDefault();
+  var touch = e.touches ? e.touches[0] : e;
+  var dx = touch.clientX - botDragData.startX;
+  var dy = touch.clientY - botDragData.startY;
+  if (Math.abs(dx) > 4 || Math.abs(dy) > 4) { botDragData.moved = true; botDragMoved = true; }
+  var bot = document.getElementById('aiBot');
+  var newLeft = botDragData.origLeft + dx;
+  var newTop = botDragData.origTop + dy;
+  newLeft = Math.max(4, Math.min(window.innerWidth - 60, newLeft));
+  newTop = Math.max(4, Math.min(window.innerHeight - 60, newTop));
+  bot.style.left = newLeft + 'px';
+  bot.style.top = newTop + 'px';
+  bot.style.right = 'auto';
+  bot.style.bottom = 'auto';
+}
+
+function onDragEnd() {
+  if (!botDragData) return;
+  var bot = document.getElementById('aiBot');
+  bot.style.transition = '';
+  if (botDragData.isTouch) {
+    document.removeEventListener('touchmove', onDragMove);
+    document.removeEventListener('touchend', onDragEnd);
+  } else {
+    document.removeEventListener('mousemove', onDragMove);
+    document.removeEventListener('mouseup', onDragEnd);
+  }
+  botDragData = null;
+}
+
+// --- 点击弹窗 ---
+function onBotClick(e) {
+  if (botDragMoved) { e.preventDefault(); e.stopPropagation(); botDragMoved = false; return; }
+  hideBotTip();
+  toggleAiPopup();
+}
+
+// --- hover 提示气泡（头顶） ---
+var botTipTimer = null;
+function showBotTip() {
+  if (aiPopupOpen) return;
+  botTipTimer = setTimeout(function() {
+    var tip = document.getElementById('botTip');
+    var bot = document.getElementById('aiBot');
+    var rect = bot.getBoundingClientRect();
+    var tipW = 240;
+    var tipH = 92;
+    // 气泡在机器人正上方，水平居中
+    var left = rect.left + rect.width / 2 - tipW / 2;
+    if (left < 8) left = 8;
+    if (left + tipW > window.innerWidth - 8) left = window.innerWidth - tipW - 8;
+    // 垂直位置：机器人头顶上方，留足间距避免遮挡
+    var top = rect.top - tipH - 14;
+    if (top < 8) top = rect.bottom + 14; // 头顶空间不够则放下方
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+    tip.style.display = 'block';
+    requestAnimationFrame(function() { tip.style.opacity = '1'; tip.style.transform = 'translateY(0)'; });
+  }, 200);
+}
+
+function hideBotTip() {
+  if (botTipTimer) { clearTimeout(botTipTimer); botTipTimer = null; }
+  var tip = document.getElementById('botTip');
+  if (tip) { tip.style.opacity = '0'; tip.style.transform = 'translateY(6px)'; setTimeout(function() { tip.style.display = 'none'; }, 200); }
+}
+
+function toggleAiPopup() {
+  var pop = document.getElementById('aiPopup');
+  if (pop.style.display === 'none' || !pop.style.display) {
+    openAiPopup();
+  } else {
+    closeAiPopup();
+  }
+}
+
+function openAiPopup() {
+  var pop = document.getElementById('aiPopup');
+  var bot = document.getElementById('aiBot');
+  var rect = bot.getBoundingClientRect();
+  var popW = 420;
+  var popH = Math.min(window.innerHeight * 0.8, 600);
+  var left = rect.left - popW + 56 + 8;
+  var top = rect.top - popH + 56;
+  if (left < 8) left = rect.right + 8;
+  if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+  if (top < 8) top = 8;
+  if (top + popH > window.innerHeight - 8) top = window.innerHeight - popH - 8;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  pop.style.display = 'flex';
+  aiPopupOpen = true;
+  // 隐藏绿色脉冲点
+  var pulse = document.getElementById('botPulse');
+  if (pulse) pulse.style.display = 'none';
+  initAiPopup();
+}
+
+function closeAiPopup() {
+  document.getElementById('aiPopup').style.display = 'none';
+  aiPopupOpen = false;
+}
+
+function initAiPopup() {
+  var key = localStorage.getItem('ds_api_key') || DEFAULT_AI_KEY;
+  var input = document.getElementById('aiApiKey');
+  if (input) {
+    input.value = key;
+    var status = document.getElementById('aiKeyStatus');
+    if (localStorage.getItem('ds_api_key')) status.textContent = '已保存'; else status.textContent = '使用内置Key';
+  }
+  switchAiMode(aiMode);
+}
+
+function switchAiMode(mode) {
+  aiMode = mode;
+  var btns = { chat: 'aiBtnChat', script: 'aiBtnScript', meeting: 'aiBtnMeeting', custom: 'aiBtnCustom' };
+  Object.keys(btns).forEach(function(k) {
+    var b = document.getElementById(btns[k]);
+    if (!b) return;
+    if (k === mode) { b.style.background = '#3b82f6'; b.style.color = '#fff'; b.style.border = 'none'; }
+    else { b.style.background = '#fff'; b.style.color = '#374151'; b.style.border = '1px solid #d1d5db'; }
+  });
+  var cfg = AI_PROMPTS[mode];
+  // 切换分析界面 vs 聊天界面
+  var isChat = (mode === 'chat');
+  document.getElementById('aiInput').parentElement.style.display = isChat ? 'none' : 'block';
+  document.getElementById('aiResultWrap').style.display = isChat ? 'none' : document.getElementById('aiResultWrap').style.display;
+  document.getElementById('aiChatWrap').style.display = isChat ? 'flex' : 'none';
+  // 举例区只在非chat模式显示
+  document.getElementById('aiExamples').style.display = isChat ? 'block' : 'block';
+  if (isChat) {
+    // 聊天模式：举例直接发送
+    var exHtml = '<div style="font-size:11px;color:#9ca3af;margin-bottom:4px;">点击下方问题快速开始对话：</div>';
+    exHtml += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+    if (cfg.examples && cfg.examples.length) {
+      cfg.examples.forEach(function(ex, i) {
+        exHtml += '<button onclick="useChatExample(' + i + ')" style="font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;background:#eff6ff;color:#3b82f6;border:1px solid #bfdbfe;">' + ex.label + '</button>';
+      });
+    }
+    exHtml += '</div>';
+    document.getElementById('aiExamples').innerHTML = exHtml;
+    // 如果聊天记录为空，显示欢迎消息
+    var msgs = document.getElementById('aiChatMsgs');
+    if (!msgs.children.length) {
+      msgs.innerHTML = '<div style="background:#f0f5ff;border-radius:10px;padding:10px 14px;font-size:13px;color:#374151;line-height:1.6;">👋 你好！我是AI投放助手，可以回答投放策略、素材创意、数据分析等问题。直接输入你的问题开始对话吧！</div>';
+    }
+  } else {
+    document.getElementById('aiInputTitle').textContent = cfg.title;
+    document.getElementById('aiHint').textContent = cfg.hint;
+    document.getElementById('aiInput').placeholder = cfg.placeholder;
+    var exHtml2 = '';
+    if (cfg.examples && cfg.examples.length) {
+      exHtml2 = '<div style="font-size:11px;color:#9ca3af;margin-bottom:4px;">点击下方示例快速体验：</div>';
+      exHtml2 += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+      cfg.examples.forEach(function(ex, i) {
+        exHtml2 += '<button onclick="useExample(' + i + ')" style="font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;background:#eff6ff;color:#3b82f6;border:1px solid #bfdbfe;">' + ex.label + '</button>';
+      });
+      exHtml2 += '</div>';
+    }
+    document.getElementById('aiExamples').innerHTML = exHtml2;
+    updateCharCount();
+  }
+}
+
+function useExample(idx) {
+  var cfg = AI_PROMPTS[aiMode];
+  if (cfg.examples && cfg.examples[idx]) {
+    document.getElementById('aiInput').value = cfg.examples[idx].text;
+    updateCharCount();
+  }
+}
+
+function updateCharCount() {
+  var v = document.getElementById('aiInput').value;
+  document.getElementById('aiCharCount').textContent = v.length + ' 字';
+}
+
+function clearAiInput() {
+  document.getElementById('aiInput').value = '';
+  updateCharCount();
+}
+
+function toggleAiKeyBox() {
+  var box = document.getElementById('aiKeyBox');
+  if (box.style.display === 'none' || !box.style.display) {
+    box.style.display = 'flex';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+function saveAiKey() {
+  var key = document.getElementById('aiApiKey').value.trim();
+  if (!key) { toast('请输入 API Key', 'error'); return; }
+  localStorage.setItem('ds_api_key', key);
+  document.getElementById('aiKeyStatus').textContent = '已保存';
+  toast('API Key 已保存', 'success');
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// 简易 Markdown 渲染
+function renderMd(md) {
+  var html = escapeHtml(md);
+  html = html.replace(/```([\s\S]*?)```/g, function(m, c) { return '<pre style="background:#f3f4f6;border-radius:6px;padding:8px;overflow-x:auto;font-size:11px;margin:4px 0;"><code>' + c.trim() + '</code></pre>'; });
+  html = html.replace(/^\|(.+)\|$/gm, function(m, c) {
+    if (c.indexOf('---') > -1) return '';
+    var cells = c.split('|').map(function(s) { return s.trim(); });
+    return '<tr>' + cells.map(function(s) { return '<td style="border:1px solid #e5e7eb;padding:3px 6px;font-size:12px;">' + s + '</td>'; }).join('') + '</tr>';
+  });
+  html = html.replace(/(<tr>[\s\S]*?<\/tr>)/g, function(m) {
+    return '<table style="border-collapse:collapse;width:100%;margin:4px 0;">' + m + '</table>';
+  });
+  html = html.replace(/^### (.+)$/gm, '<div style="font-weight:700;font-size:13px;color:#374151;margin:6px 0 2px;">$1</div>');
+  html = html.replace(/^## (.+)$/gm, '<div style="font-weight:700;font-size:14px;color:#111827;margin:8px 0 3px;">$1</div>');
+  html = html.replace(/^# (.+)$/gm, '<div style="font-weight:700;font-size:15px;color:#111827;margin:8px 0 3px;">$1</div>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  html = html.replace(/`(.+?)`/g, '<code style="background:#f3f4f6;padding:1px 4px;border-radius:3px;font-size:11px;">$1</code>');
+  html = html.replace(/^- (.+)$/gm, '<li style="margin-left:16px;font-size:12px;color:#374151;">$1</li>');
+  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin-left:16px;font-size:12px;color:#374151;list-style:decimal;">$1</li>');
+  html = html.replace(/\n\n/g, '</p><p style="font-size:12px;color:#374151;margin:4px 0;">');
+  html = '<p style="font-size:12px;color:#374151;margin:4px 0;">' + html + '</p>';
+  html = html.replace(/<p style="font-size:12px;color:#374151;margin:4px 0;"><\/p>/g, '');
+  return html;
+}
+
+async function runAiAnalysis() {
+  var input = document.getElementById('aiInput').value.trim();
+  if (!input) { toast('请输入待分析的内容', 'error'); return; }
+  var key = localStorage.getItem('ds_api_key') || DEFAULT_AI_KEY;
+  if (!key) {
+    toast('请先设置 DeepSeek API Key', 'error');
+    document.getElementById('aiKeyBox').classList.remove('hidden');
+    return;
+  }
+
+  var cfg = AI_PROMPTS[aiMode];
+  document.getElementById('aiResultWrap').style.display = 'none';
+  document.getElementById('aiLoading').style.display = 'flex';
+  document.getElementById('aiRunBtn').disabled = true;
+
+  try {
+    var resp = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + key
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: cfg.system },
+          { role: 'user', content: input }
+        ],
+        temperature: 0.7,
+        max_tokens: 4096
+      })
+    });
+
+    if (!resp.ok) {
+      var errText = await resp.text();
+      throw new Error('HTTP ' + resp.status + ': ' + errText);
+    }
+
+    var data = await resp.json();
+    var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if (!content) throw new Error('AI 返回内容为空');
+
+    document.getElementById('aiResult').innerHTML = renderMd(content);
+    document.getElementById('aiResultWrap').style.display = 'block';
+    document.getElementById('aiResult').setAttribute('data-raw', content);
+    toast('分析完成', 'success');
+  } catch (e) {
+    var errMsg = e.message || String(e);
+    var display = '<div style="color:#ef4444;font-size:12px;">';
+    if (errMsg.indexOf('Failed to fetch') > -1) {
+      display += '请求失败，可能原因：<br>1. API Key 无效<br>2. 网络连接问题<br>3. 浏览器 CORS 限制<br><br>请检查 API Key 是否正确，或稍后重试。';
+    } else {
+      display += '分析失败：' + escapeHtml(errMsg);
+    }
+    display += '</div>';
+    document.getElementById('aiResult').innerHTML = display;
+    document.getElementById('aiResultWrap').style.display = 'block';
+    toast('分析失败', 'error');
+  } finally {
+    document.getElementById('aiLoading').style.display = 'none';
+    document.getElementById('aiRunBtn').disabled = false;
+  }
+}
+
+function copyAiResult() {
+  var raw = document.getElementById('aiResult').getAttribute('data-raw');
+  if (!raw) { toast('暂无可复制的内容', 'error'); return; }
+  navigator.clipboard.writeText(raw).then(function() {
+    toast('已复制到剪贴板', 'success');
+  }).catch(function() {
+    toast('复制失败', 'error');
+  });
+}
+
+// ===== AI 聊天模式 =====
+
+function useChatExample(idx) {
+  var cfg = AI_PROMPTS['chat'];
+  if (cfg.examples && cfg.examples[idx]) {
+    var input = document.getElementById('aiChatInput');
+    input.value = cfg.examples[idx].text;
+    input.focus();
+  }
+}
+
+function clearChat() {
+  chatHistory = [];
+  var msgs = document.getElementById('aiChatMsgs');
+  msgs.innerHTML = '<div style="background:#f0f5ff;border-radius:10px;padding:10px 14px;font-size:13px;color:#374151;line-height:1.6;">👋 你好！我是AI投放助手，可以回答投放策略、素材创意、数据分析等问题。直接输入你的问题开始对话吧！</div>';
+}
+
+function appendChatBubble(role, content) {
+  var msgs = document.getElementById('aiChatMsgs');
+  var div = document.createElement('div');
+  if (role === 'user') {
+    div.style.cssText = 'align-self:flex-end;max-width:85%;background:#3b82f6;color:#fff;border-radius:12px 12px 4px 12px;padding:8px 12px;font-size:13px;line-height:1.5;word-break:break-word;';
+    div.textContent = content;
+  } else {
+    div.style.cssText = 'align-self:flex-start;max-width:85%;background:#f3f4f6;color:#1f2937;border-radius:12px 12px 12px 4px;padding:8px 12px;font-size:13px;line-height:1.5;word-break:break-word;';
+    div.innerHTML = renderMd(content);
+  }
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+async function sendChatMessage() {
+  var input = document.getElementById('aiChatInput');
+  var text = input.value.trim();
+  if (!text) return;
+
+  var key = localStorage.getItem('ds_api_key') || DEFAULT_AI_KEY;
+  if (!key) {
+    toast('请先设置 DeepSeek API Key', 'error');
+    toggleAiKeyBox();
+    return;
+  }
+
+  var sendBtn = document.getElementById('aiSendBtn');
+  sendBtn.disabled = true;
+  sendBtn.textContent = '思考中...';
+  sendBtn.style.background = '#9ca3af';
+  input.value = '';
+
+  var msgs = document.getElementById('aiChatMsgs');
+  // 如果只有欢迎消息，清空它
+  var welcome = msgs.querySelector('div[style*="f0f5ff"]');
+  if (welcome) welcome.remove();
+
+  // 渲染用户消息
+  appendChatBubble('user', text);
+
+  // 添加加载中的AI气泡
+  var loadingBubble = document.createElement('div');
+  loadingBubble.style.cssText = 'align-self:flex-start;max-width:85%;background:#f3f4f6;color:#9ca3af;border-radius:12px 12px 12px 4px;padding:8px 12px;font-size:13px;line-height:1.5;';
+  loadingBubble.innerHTML = '<span style="display:inline-block;animation:botSpin 0.8s linear infinite;">⏳</span> 正在思考...';
+  msgs.appendChild(loadingBubble);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    var cfg = AI_PROMPTS['chat'];
+    var messages = [{ role: 'system', content: cfg.system }];
+    // 携带历史对话（最多最近20条，避免token超限）
+    var recentHistory = chatHistory.slice(-20);
+    messages = messages.concat(recentHistory);
+    messages.push({ role: 'user', content: text });
+
+    var resp = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + key
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 4096
+      })
+    });
+
+    if (!resp.ok) {
+      var errText = await resp.text();
+      throw new Error('HTTP ' + resp.status + ': ' + errText);
+    }
+
+    var data = await resp.json();
+    var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if (!content) throw new Error('AI 返回内容为空');
+
+    // 移除加载气泡，渲染AI回复
+    loadingBubble.remove();
+    appendChatBubble('assistant', content);
+
+    // 保存到历史
+    chatHistory.push({ role: 'user', content: text });
+    chatHistory.push({ role: 'assistant', content: content });
+
+  } catch (e) {
+    loadingBubble.remove();
+    var errMsg = e.message || String(e);
+    var display = errMsg;
+    if (errMsg.indexOf('Failed to fetch') > -1) {
+      display = '请求失败，可能是 API Key 无效或网络问题，请检查后重试。';
+    }
+    appendChatBubble('assistant', '❌ ' + display);
+    toast('发送失败', 'error');
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = '发送';
+    sendBtn.style.background = '#3b82f6';
+    input.focus();
+  }
+}
+
+// ===== 巨量方舟数据 =====
+var oceanApiBase = localStorage.getItem('ocean_api_base') || '';
+var oceanAdvertisers = [];
+var oceanCurrentData = [];
+
+function getOceanBase() {
+  var b = (document.getElementById('oceanApiBase') || {}).value || oceanApiBase || '';
+  return b.replace(/\/+$/, '');
+}
+
+function saveOceanConfig() {
+  var v = document.getElementById('oceanApiBase').value.trim();
+  if (!v) { toast('请输入Worker地址', 'warn'); return; }
+  oceanApiBase = v.replace(/\/+$/, '');
+  localStorage.setItem('ocean_api_base', oceanApiBase);
+  toast('Worker地址已保存', 'success');
+}
+
+function startOceanAuth() {
+  var base = getOceanBase();
+  if (!base) { toast('请先填入Worker地址并保存', 'warn'); return; }
+  window.open(base + '/auth', '_blank');
+}
+
+async function initOceanTab() {
+  // 恢复保存的地址
+  if (oceanApiBase) {
+    var el = document.getElementById('oceanApiBase');
+    if (el) el.value = oceanApiBase;
+  }
+  // 检查授权状态
+  if (!oceanApiBase) return;
+  await checkOceanAuth();
+}
+
+async function checkOceanAuth() {
+  var base = getOceanBase();
+  if (!base) return;
+  try {
+    var resp = await fetch(base + '/auth/status');
+    var data = await resp.json();
+    if (data.authorized) {
+      document.getElementById('oceanNotAuth').style.display = 'none';
+      document.getElementById('oceanAuthed').style.display = 'block';
+      // 设置默认日期：近7天
+      var today = new Date();
+      var weekAgo = new Date(today.getTime() - 6 * 86400000);
+      document.getElementById('oceanEndDate').value = today.toISOString().slice(0, 10);
+      document.getElementById('oceanStartDate').value = weekAgo.toISOString().slice(0, 10);
+      await loadOceanAdvertisers();
+    } else {
+      document.getElementById('oceanNotAuth').style.display = 'block';
+      document.getElementById('oceanAuthed').style.display = 'none';
+    }
+  } catch (e) {
+    toast('无法连接Worker，请检查地址', 'error');
+  }
+}
+
+async function loadOceanAdvertisers() {
+  var base = getOceanBase();
+  try {
+    var resp = await fetch(base + '/advertisers');
+    var data = await resp.json();
+    if (data.code === 0 && data.data && data.data.list) {
+      oceanAdvertisers = data.data.list;
+      var sel = document.getElementById('oceanAdvertiser');
+      sel.innerHTML = '<option value="">选择广告主账户</option>' + oceanAdvertisers.map(function(a) {
+        return '<option value="' + a.advertiser_id + '">' + a.advertiser_name + ' (' + a.advertiser_id + ')</option>';
+      }).join('');
+    }
+  } catch (e) {
+    toast('获取账户列表失败', 'error');
+  }
+}
+
+async function loadOceanData() {
+  var advertiserId = document.getElementById('oceanAdvertiser').value;
+  var startDate = document.getElementById('oceanStartDate').value;
+  var endDate = document.getElementById('oceanEndDate').value;
+  if (!advertiserId) { toast('请选择广告主账户', 'warn'); return; }
+  if (!startDate || !endDate) { toast('请选择日期范围', 'warn'); return; }
+
+  toast('正在同步数据...', 'info');
+  var base = getOceanBase();
+  try {
+    var resp = await fetch(base + '/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        path: '/v3.0/report/custom/get/',
+        method: 'GET',
+        params: {
+          advertiser_id: advertiserId,
+          start_date: startDate,
+          end_date: endDate,
+          fields: JSON.stringify(['stat_cost', 'show_cnt', 'click_cnt', 'convert_cnt', 'order_gmv']),
+          group_by: JSON.stringify(['stat_date', 'ad_name']),
+          order_field: 'stat_cost',
+          order_type: 'DESC',
+          page: 1,
+          page_size: 100,
+        }
+      })
+    });
+    var data = await resp.json();
+    if (data.code === 0 && data.data && data.data.list) {
+      oceanCurrentData = data.data.list;
+      renderOceanData(data.data.list);
+      toast('同步成功，共 ' + data.data.list.length + ' 条数据', 'success');
+    } else if (data.need_auth) {
+      toast('授权已过期，请重新授权', 'warn');
+      checkOceanAuth();
+    } else {
+      toast('同步失败: ' + (data.message || '未知错误'), 'error');
+    }
+  } catch (e) {
+    toast('请求失败: ' + e.message, 'error');
+  }
+}
+
+function renderOceanData(list) {
+  var tbody = document.getElementById('oceanTable');
+  var summary = document.getElementById('oceanSummary');
+  var empty = document.getElementById('oceanEmpty');
+
+  if (!list || list.length === 0) {
+    tbody.innerHTML = '';
+    summary.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  // 汇总
+  var totalCost = 0, totalShow = 0, totalClick = 0, totalConv = 0, totalGmv = 0;
+  list.forEach(function(d) {
+    totalCost += parseFloat(d.stat_cost) || 0;
+    totalShow += parseInt(d.show_cnt) || 0;
+    totalClick += parseInt(d.click_cnt) || 0;
+    totalConv += parseInt(d.convert_cnt) || 0;
+    totalGmv += parseFloat(d.order_gmv) || 0;
+  });
+  var ctr = totalShow > 0 ? (totalClick / totalShow * 100).toFixed(2) : '0';
+  summary.innerHTML = [
+    { label: '总消耗', value: '¥' + totalCost.toFixed(2), color: '#ef4444' },
+    { label: '总展示', value: totalShow.toLocaleString(), color: '#6366f1' },
+    { label: '总点击', value: totalClick.toLocaleString(), color: '#10b981' },
+    { label: '总GMV', value: '¥' + totalGmv.toFixed(2), color: '#f59e0b' },
+  ].map(function(s) {
+    return '<div class="card p-4"><div class="text-xs text-gray-400 mb-1">' + s.label + '</div><div class="text-xl font-bold" style="color:' + s.color + '">' + s.value + '</div></div>';
+  }).join('');
+
+  // 表格
+  tbody.innerHTML = list.map(function(d) {
+    var ctr = (parseInt(d.show_cnt) || 0) > 0 ? ((parseInt(d.click_cnt) || 0) / parseInt(d.show_cnt) * 100).toFixed(2) : '0';
+    return '<tr style="border-bottom:1px solid #f1f5f9;">' +
+      '<td class="px-3 py-2 text-gray-500">' + (d.stat_date || '--') + '</td>' +
+      '<td class="px-3 py-2">' + escapeHtml(d.ad_name || '--') + '</td>' +
+      '<td class="px-3 py-2 text-right text-red-500 font-medium">¥' + (parseFloat(d.stat_cost) || 0).toFixed(2) + '</td>' +
+      '<td class="px-3 py-2 text-right">' + (parseInt(d.show_cnt) || 0).toLocaleString() + '</td>' +
+      '<td class="px-3 py-2 text-right">' + (parseInt(d.click_cnt) || 0).toLocaleString() + '</td>' +
+      '<td class="px-3 py-2 text-right">' + (parseInt(d.convert_cnt) || 0) + '</td>' +
+      '<td class="px-3 py-2 text-right text-amber-600">¥' + (parseFloat(d.order_gmv) || 0).toFixed(2) + '</td>' +
+      '<td class="px-3 py-2 text-right text-gray-400">' + ctr + '%</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function importOceanToAnalytics() {
+  if (!oceanCurrentData || oceanCurrentData.length === 0) {
+    toast('没有可导入的数据，请先同步', 'warn');
+    return;
+  }
+  showConfirm('确认将 ' + oceanCurrentData.length + ' 条方舟数据导入到数据分析模块？', function() {
+    var count = 0;
+    oceanCurrentData.forEach(function(d) {
+      var item = {
+        id: Date.now().toString() + '_o' + count,
+        date: d.stat_date || '',
+        platform: '千川',
+        matName: d.ad_name || '',
+        cost: parseFloat(d.stat_cost) || 0,
+        gmv: parseFloat(d.order_gmv) || 0,
+        show: parseInt(d.show_cnt) || 0,
+        click: parseInt(d.click_cnt) || 0,
+        conv: parseInt(d.convert_cnt) || 0,
+        ctr3s: '',
+        playRate: '',
+      };
+      analyticsData.unshift(item);
+      count++;
+    });
+    saveLS('ana_data', analyticsData);
+    toast('成功导入 ' + count + ' 条数据到数据分析', 'success');
+    switchTab('analytics');
+  });
+}
+
+async function revokeOceanAuth() {
+  showConfirm('确认解除巨量方舟授权？', async function() {
+    var base = getOceanBase();
+    try {
+      await fetch(base + '/auth/revoke', { method: 'POST' });
+      toast('已解除授权', 'success');
+      document.getElementById('oceanNotAuth').style.display = 'block';
+      document.getElementById('oceanAuthed').style.display = 'none';
+    } catch (e) {
+      toast('解除失败', 'error');
+    }
+  });
+}
+
+// ===== 视频改码工具 =====
+
+// --- 内联 MD5 实现 ---
+(function(){
+var hex_chr='0123456789abcdef'.split('');
+function rhex(n){var s='';for(var j=0;j<4;j++)s+=hex_chr[(n>>(j*8+4))&0x0f]+hex_chr[(n>>(j*8))&0x0f];return s}
+function add32(a,b){return(a+b)&0xFFFFFFFF}
+function cmn(q,a,b,x,s,t){a=add32(add32(a,q),add32(x,t));return add32((a<<s)|(a>>>32-s),b)}
+function ff(a,b,c,d,x,s,t){return cmn((b&c)|((~b)&d),a,b,x,s,t)}
+function gg(a,b,c,d,x,s,t){return cmn((b&d)|(c&(~d)),a,b,x,s,t)}
+function hh(a,b,c,d,x,s,t){return cmn(b^c^d,a,b,x,s,t)}
+function ii(a,b,c,d,x,s,t){return cmn(c^(b|(~d)),a,b,x,s,t)}
+function md5cycle(x,k){var a=x[0],b=x[1],c=x[2],d=x[3];a=ff(a,b,c,d,k[0],7,-680876936);d=ff(d,a,b,c,k[1],12,-389564586);c=ff(c,d,a,b,k[2],17,606105819);b=ff(b,c,d,a,k[3],22,-1044525330);a=ff(a,b,c,d,k[4],7,-176418897);d=ff(d,a,b,c,k[5],12,1200080426);c=ff(c,d,a,b,k[6],17,-1473231341);b=ff(b,c,d,a,k[7],22,-45705983);a=ff(a,b,c,d,k[8],7,1770035416);d=ff(d,a,b,c,k[9],12,-1958414417);c=ff(c,d,a,b,k[10],17,-42063);b=ff(b,c,d,a,k[11],22,-1990404162);a=ff(a,b,c,d,k[12],7,1804603682);d=ff(d,a,b,c,k[13],12,-40341101);c=ff(c,d,a,b,k[14],17,-1502002290);b=ff(b,c,d,a,k[15],22,1236535329);a=gg(a,b,c,d,k[1],5,-165796510);d=gg(d,a,b,c,k[6],9,-1069501632);c=gg(c,d,a,b,k[11],14,643717713);b=gg(b,c,d,a,k[0],20,-373897302);a=gg(a,b,c,d,k[5],5,-701558691);d=gg(d,a,b,c,k[10],9,38016083);c=gg(c,d,a,b,k[15],14,-660478335);b=gg(b,c,d,a,k[4],20,-405537848);a=gg(a,b,c,d,k[9],5,76029189);d=gg(d,a,b,c,k[14],9,-640364487);c=gg(c,d,a,b,k[3],14,-421815835);b=gg(b,c,d,a,k[8],20,1309151649);a=gg(a,b,c,d,k[13],5,-4149444);d=gg(d,a,b,c,k[2],9,286233620);c=gg(c,d,a,b,k[7],14,-173439988);b=gg(b,c,d,a,k[12],20,2415788128);a=hh(a,b,c,d,k[5],4,-127630243);d=hh(d,a,b,c,k[8],11,-1555805516);c=hh(c,d,a,b,k[11],16,390540271);b=hh(b,c,d,a,k[14],23,609856706);a=hh(a,b,c,d,k[1],4,-327245625);d=hh(d,a,b,c,k[4],11,1732584193);c=hh(c,d,a,b,k[7],16,-718406703);b=hh(b,c,d,a,k[10],23,-42597538);a=hh(a,b,c,d,k[13],4,275428736);d=hh(d,a,b,c,k[0],11,-1825699442);c=hh(c,d,a,b,k[3],16,-685439906);b=hh(b,c,d,a,k[6],23,76029189);a=hh(a,b,c,d,k[9],4,-35309556);d=hh(d,a,b,c,k[12],11,-1533428576);c=hh(c,d,a,b,k[15],16,1272893353);b=hh(b,c,d,a,k[2],23,-155497632);a=ii(a,b,c,d,k[0],6,-198630844);d=ii(d,a,b,c,k[7],10,1126891415);c=ii(c,d,a,b,k[14],15,-1416231301);b=ii(b,c,d,a,k[5],21,-57434055);a=ii(a,b,c,d,k[12],6,1700485571);d=ii(d,a,b,c,k[3],10,-1894986606);c=ii(c,d,a,b,k[10],15,-1051523);b=ii(b,c,d,a,k[1],21,-2054922799);a=ii(a,b,c,d,k[8],6,1873313359);d=ii(d,a,b,c,k[15],10,-30611744);c=ii(c,d,a,b,k[6],15,1560198380);b=ii(b,c,d,a,k[13],21,1309151649);a=ii(a,b,c,d,k[4],6,-145523070);d=ii(d,a,b,c,k[11],10,-1120210379);c=ii(c,d,a,b,k[2],15,718787259);b=ii(b,c,d,a,k[9],21,-343485551);x[0]=add32(a,x[0]);x[1]=add32(b,x[1]);x[2]=add32(c,x[2]);x[3]=add32(d,x[3])}
+function md5blk(s,i){var md5blks=[];for(var j=0;j<64;j+=4)md5blks[j>>2]=s.charCodeAt(i+j)+(s.charCodeAt(i+j+1)<<8)+(s.charCodeAt(i+j+2)<<16)+(s.charCodeAt(i+j+3)<<24);return md5blks}
+var md5_str=function(s){var n=s.length,state=[1732584193,-271733879,-1732584194,271733878],i,length,tail,tmp,lo,hi;for(i=64;i<=n;i+=64)md5cycle(state,md5blk(s,i-64));tmp=s.substring(i-64);lo=n;hi=Math.floor(n/4294967296);tail=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];for(i=0;i<tmp.length;i++)tail[i>>2]|=tmp.charCodeAt(i)<<(i%4<<3);tail[i>>2]|=0x80<<(i%4<<3);if(i>55){md5cycle(state,tail);for(i=0;i<16;i++)tail[i]=0}tail[14]=lo*8;tail[15]=((lo*8)>>>0>0x1FFFFFFF?hi+1:hi);md5cycle(state,tail);return rhex(state[0])+rhex(state[1])+rhex(state[2])+rhex(state[3])};
+window.VMD5={compute:function(arrBuf){var u8=new Uint8Array(arrBuf);var s='';for(var i=0;i<u8.length;i++)s+=String.fromCharCode(u8[i]);return md5_str(s)}};
+})();
+
+function vmd5ComputeMD5(file) {
+  return new Promise(function(resolve, reject) {
+    var chunkSize = 4 * 1024 * 1024;
+    var chunks = Math.ceil(file.size / chunkSize);
+    var currentChunk = 0;
+    var parts = [];
+    function loadNext() {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        parts.push(new Uint8Array(e.target.result));
+        currentChunk++;
+        if (currentChunk < chunks) { loadNext(); }
+        else {
+          var totalLen = 0;
+          for (var i = 0; i < parts.length; i++) totalLen += parts[i].length;
+          var combined = new Uint8Array(totalLen);
+          var offset = 0;
+          for (var i = 0; i < parts.length; i++) { combined.set(parts[i], offset); offset += parts[i].length; }
+          resolve(VMD5.compute(combined.buffer));
+        }
+      };
+      reader.onerror = reject;
+      var start = currentChunk * chunkSize;
+      var end = Math.min(start + chunkSize, file.size);
+      reader.readAsArrayBuffer(file.slice(start, end));
+    }
+    loadNext();
+  });
+}
+
+function vmd5ProbeVideo(file) {
+  return new Promise(function(resolve) {
+    var video = document.createElement('video');
+    video.preload = 'metadata';
+    var url = URL.createObjectURL(file);
+    video.src = url;
+    var timeout = setTimeout(function() { resolve({width:0,height:0,duration:0,hasAudio:false}); URL.revokeObjectURL(url); }, 5000);
+    video.onloadedmetadata = function() {
+      clearTimeout(timeout);
+      var hasAudio = false;
+      if (video.mozHasAudio !== undefined) hasAudio = video.mozHasAudio;
+      else if (video.webkitAudioDecodedByteCount !== undefined) hasAudio = video.webkitAudioDecodedByteCount > 0;
+      else if (video.audioTracks !== undefined) hasAudio = video.audioTracks.length > 0;
+      else hasAudio = true;
+      resolve({width:video.videoWidth||0,height:video.videoHeight||0,duration:video.duration||0,hasAudio:hasAudio});
+      URL.revokeObjectURL(url);
+    };
+    video.onerror = function() { clearTimeout(timeout); resolve({width:0,height:0,duration:0,hasAudio:false}); URL.revokeObjectURL(url); };
+  });
+}
+
+// --- FFmpeg.wasm 加载 ---
+var vmd5FFmpegLoaded = false;
+var vmd5FFmpegInstance = null;
+var vmd5FFmpegLoadAttempted = false;
+var vmd5CDN = [
+  { name: 'jsdelivr',   ffmpeg: 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js', util: 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/util.js', core: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js', wasm: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm' },
+  { name: 'npmmirror',  ffmpeg: 'https://registry.npmmirror.com/@ffmpeg/ffmpeg/0.12.10/files/dist/umd/ffmpeg.js', util: 'https://registry.npmmirror.com/@ffmpeg/util/0.12.1/files/dist/umd/util.js', core: 'https://registry.npmmirror.com/@ffmpeg/core/0.12.6/files/dist/umd/ffmpeg-core.js', wasm: 'https://registry.npmmirror.com/@ffmpeg/core/0.12.6/files/dist/umd/ffmpeg-core.wasm' },
+  { name: 'unpkg',      ffmpeg: 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js', util: 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/util.js', core: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js', wasm: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm' }
+];
+
+async function vmd5TryLoadFFmpeg(onProgress) {
+  if (vmd5FFmpegLoaded && vmd5FFmpegInstance) return vmd5FFmpegInstance;
+  if (vmd5FFmpegLoadAttempted) return null;
+  vmd5FFmpegLoadAttempted = true;
+  if (typeof SharedArrayBuffer === 'undefined') {
+    if (onProgress) onProgress('浏览器不支持 SharedArrayBuffer，转码引擎不可用');
+    vmd5FFmpegLoaded = false; vmd5FFmpegInstance = null; return null;
+  }
+  for (var ci = 0; ci < vmd5CDN.length; ci++) {
+    var cdn = vmd5CDN[ci];
+    try {
+      if (onProgress) onProgress('正在加载转码引擎（' + cdn.name + '）...');
+      await vmd5LoadScript(cdn.ffmpeg, 15000);
+      await vmd5LoadScript(cdn.util, 10000);
+      if (!window.FFmpeg || !window.FFmpeg.FFmpeg) throw new Error('FFmpeg 库加载失败（' + cdn.name + '）');
+      var ff = new window.FFmpeg.FFmpeg();
+      ff.on('log', function() {});
+      ff.on('progress', function(e) { if (onProgress && e.progress) onProgress('正在转码... ' + Math.min(Math.round(e.progress * 100), 99) + '%'); });
+      if (onProgress) onProgress('正在加载核心文件（' + cdn.name + '，约25MB）...');
+      await Promise.race([
+        ff.load({ coreURL: cdn.core, wasmURL: cdn.wasm }),
+        new Promise(function(_, reject) { setTimeout(function() { reject(new Error('核心文件加载超时（' + cdn.name + '）')); }, 90000); })
+      ]);
+      vmd5FFmpegInstance = ff; vmd5FFmpegLoaded = true;
+      return ff;
+    } catch(e) {
+      vmd5FFmpegLoaded = false; vmd5FFmpegInstance = null;
+    }
+  }
+  vmd5FFmpegLoaded = false; vmd5FFmpegInstance = null; return null;
+}
+
+function vmd5LoadScript(url, timeoutMs) {
+  return Promise.race([
+    new Promise(function(resolve, reject) {
+      var existing = document.querySelector('script[src="' + url + '"]');
+      if (existing) { resolve(); return; }
+      var s = document.createElement('script');
+      s.src = url; s.onload = resolve; s.onerror = function() { reject(new Error('脚本加载失败: ' + url)); };
+      document.head.appendChild(s);
+    }),
+    new Promise(function(_, reject) { setTimeout(function() { reject(new Error('脚本加载超时: ' + url)); }, timeoutMs); })
+  ]);
+}
+
+// --- 转码策略 ---
+async function vmd5TranscodeVideo(file, level, onProgress, videoInfo) {
+  var ff = await vmd5TryLoadFFmpeg(onProgress);
+  if (!ff) throw new Error('FFmpeg不可用');
+  var inputName = 'input' + Date.now() + '.mp4';
+  var outputName = 'output' + Date.now() + '.mp4';
+  if (onProgress) onProgress('正在读取文件...');
+  var fileData = await file.arrayBuffer();
+  await ff.writeFile(inputName, new Uint8Array(fileData));
+  var args = [];
+  var hasAudio = videoInfo && videoInfo.hasAudio;
+  if (level === 'light') {
+    if (hasAudio) args = ['-i', inputName, '-filter_complex', '[0:v]setpts=0.99*PTS,trim=start_frame=2,setpts=PTS-STARTPTS[v];[0:a]atempo=1.01,atrim=start_sample=0,asetpts=PTS-STARTPTS[a]', '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-c:a', 'aac', '-b:a', '128k', '-pix_fmt', 'yuv420p', '-y', outputName];
+    else args = ['-i', inputName, '-filter_complex', '[0:v]setpts=0.99*PTS,trim=start_frame=2,setpts=PTS-STARTPTS[v]', '-map', '[v]', '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-an', '-pix_fmt', 'yuv420p', '-y', outputName];
+  } else if (level === 'standard') {
+    var br = vmd5EstimateBitrate(file, videoInfo);
+    var bufSize = (parseInt(br) * 2) + 'k';
+    if (hasAudio) args = ['-i', inputName, '-filter_complex', '[0:v]setpts=0.99*PTS,trim=start_frame=2,setpts=PTS-STARTPTS,noise=alls=1:allf=t[v];[0:a]atempo=1.01,atrim=start_sample=0,asetpts=PTS-STARTPTS[a]', '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '22', '-maxrate', br, '-bufsize', bufSize, '-c:a', 'aac', '-b:a', '128k', '-pix_fmt', 'yuv420p', '-y', outputName];
+    else args = ['-i', inputName, '-filter_complex', '[0:v]setpts=0.99*PTS,trim=start_frame=2,setpts=PTS-STARTPTS,noise=alls=1:allf=t[v]', '-map', '[v]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '22', '-maxrate', br, '-bufsize', bufSize, '-an', '-pix_fmt', 'yuv420p', '-y', outputName];
+  } else if (level === 'deep') {
+    if (hasAudio) args = ['-i', inputName, '-filter_complex', '[0:v]setpts=0.98*PTS,trim=start_frame=3,setpts=PTS-STARTPTS,noise=alls=2:allf=t,fps=29.97[v];[0:a]atempo=1.02,atrim=start_sample=0,asetpts=PTS-STARTPTS,aformat=sample_fmts=fltp:sample_rates=44100[a]', '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'slow', '-crf', '21', '-profile:v', 'high', '-level', '4.1', '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-y', outputName];
+    else args = ['-i', inputName, '-filter_complex', '[0:v]setpts=0.98*PTS,trim=start_frame=3,setpts=PTS-STARTPTS,noise=alls=2:allf=t,fps=29.97[v]', '-map', '[v]', '-c:v', 'libx264', '-preset', 'slow', '-crf', '21', '-profile:v', 'high', '-level', '4.1', '-an', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-y', outputName];
+  }
+  if (onProgress) onProgress('正在转码...');
+  await ff.exec(args);
+  if (onProgress) onProgress('正在生成文件...');
+  var outputData = await ff.readFile(outputName);
+  try { await ff.deleteFile(inputName); } catch(e) {}
+  try { await ff.deleteFile(outputName); } catch(e) {}
+  return new Blob([outputData.buffer], {type: 'video/mp4'});
+}
+
+function vmd5EstimateBitrate(file, videoInfo) {
+  var dur = 30;
+  if (videoInfo && videoInfo.duration > 0) dur = videoInfo.duration;
+  var bps = (file.size * 8) / dur;
+  var kbps = Math.round(bps / 1024);
+  return Math.max(500, Math.round(kbps * 0.95)) + 'k';
+}
+
+// --- 纯 MD5 修改（降级方案） ---
+function vmd5ReadU32(buf, off) { return (buf[off]<<24)|(buf[off+1]<<16)|(buf[off+2]<<8)|buf[off+3]; }
+function vmd5WriteU32(buf, off, val) { buf[off]=(val>>>24)&0xFF; buf[off+1]=(val>>>16)&0xFF; buf[off+2]=(val>>>8)&0xFF; buf[off+3]=val&0xFF; }
+function vmd5RandomBytes(len) { var a=new Uint8Array(len); crypto.getRandomValues(a); return a; }
+
+function vmd5FindBoxes(u8, boxType, start, end) {
+  var results = [];
+  if (!end) end = u8.length;
+  var pos = start || 0;
+  var containers = ['moov','trak','mdia','minf','stbl','edts','udta','meta','sinf','schi','mvex'];
+  while (pos < end - 8) {
+    var size = vmd5ReadU32(u8, pos);
+    var type = String.fromCharCode(u8[pos+4],u8[pos+5],u8[pos+6],u8[pos+7]);
+    if (size === 0) size = end - pos;
+    else if (size === 1) { pos += 16; continue; }
+    if (size < 8) break;
+    if (type === boxType) results.push({offset:pos, size:size, dataOffset:pos+8, dataSize:size-8});
+    if (containers.indexOf(type) >= 0) {
+      var inner = pos + 8 + (type === 'meta' ? 4 : 0);
+      results = results.concat(vmd5FindBoxes(u8, boxType, inner, pos + size));
+    }
+    pos += size;
+  }
+  return results;
+}
+
+function vmd5CreateBox(type, data) {
+  var box = new Uint8Array(8 + data.length);
+  vmd5WriteU32(box, 0, 8 + data.length);
+  for (var i = 0; i < 4; i++) box[4+i] = type.charCodeAt(i);
+  box.set(data, 8);
+  return box;
+}
+
+function vmd5ModifyMP4(buf, level) {
+  var u8 = new Uint8Array(buf);
+  var mods = [];
+  var udtas = vmd5FindBoxes(u8, 'udta');
+  for (var ui = 0; ui < udtas.length; ui++) {
+    var udta = udtas[ui];
+    var pos = udta.dataOffset;
+    var end = udta.offset + udta.size;
+    while (pos < end - 8) {
+      var s = vmd5ReadU32(u8, pos);
+      var t = String.fromCharCode(u8[pos+4],u8[pos+5],u8[pos+6],u8[pos+7]);
+      if (s < 8 || pos + s > end) break;
+      if (s > 16) { mods.push({offset: pos+16, data: vmd5RandomBytes(s-16)}); }
+      pos += s;
+    }
+  }
+  if (level === 'deep') {
+    var moovs = vmd5FindBoxes(u8, 'moov');
+    for (var mi = 0; mi < moovs.length; mi++) {
+      var moov = moovs[mi];
+      var mvhds = vmd5FindBoxes(u8, 'mvhd', moov.dataOffset, moov.offset+moov.size);
+      for (var i = 0; i < mvhds.length; i++) {
+        var mvhd = mvhds[i]; var ver = u8[mvhd.dataOffset];
+        var nowT = Math.floor(Date.now()/1000)+Math.floor(Math.random()*86400);
+        var tb = new Uint8Array(4); vmd5WriteU32(tb, 0, nowT);
+        if (ver === 0 && mvhd.dataSize >= 12) {
+          mods.push({offset:mvhd.dataOffset+4, data:tb});
+          mods.push({offset:mvhd.dataOffset+8, data:tb});
+          if (mvhd.dataSize >= 4) {
+            var nid = vmd5ReadU32(u8, mvhd.offset+mvhd.size-4);
+            var nb = new Uint8Array(4); vmd5WriteU32(nb, 0, nid+1+Math.floor(Math.random()*100));
+            mods.push({offset:mvhd.offset+mvhd.size-4, data:nb});
+          }
+        }
+      }
+      var tkhds = vmd5FindBoxes(u8, 'tkhd', moov.dataOffset, moov.offset+moov.size);
+      for (var i = 0; i < tkhds.length; i++) {
+        var tkhd = tkhds[i]; var ver = u8[tkhd.dataOffset];
+        var nowT2 = Math.floor(Date.now()/1000)+Math.floor(Math.random()*86400);
+        var tb2 = new Uint8Array(4); vmd5WriteU32(tb2, 0, nowT2);
+        if (ver === 0 && tkhd.dataSize >= 12) {
+          mods.push({offset:tkhd.dataOffset+4, data:tb2});
+          mods.push({offset:tkhd.dataOffset+8, data:tb2});
+        }
+      }
+    }
+  }
+  var appendSizes = {light:40, standard:128, deep:256};
+  mods.push({append: vmd5CreateBox('uuid', vmd5RandomBytes(appendSizes[level]||64))});
+  var appendLen = 0;
+  for (var i = 0; i < mods.length; i++) if (mods[i].append) appendLen += mods[i].append.length;
+  var result = new Uint8Array(u8.length + appendLen);
+  result.set(u8);
+  for (var i = 0; i < mods.length; i++) {
+    if (mods[i].offset !== undefined && mods[i].data) result.set(mods[i].data, mods[i].offset);
+  }
+  var aoff = u8.length;
+  for (var i = 0; i < mods.length; i++) {
+    if (mods[i].append) { result.set(mods[i].append, aoff); aoff += mods[i].append.length; }
+  }
+  return result;
+}
+
+function vmd5ModifyGeneric(buf, level) {
+  var u8 = new Uint8Array(buf);
+  var sizes = {light:16, standard:64, deep:128};
+  var extra = (sizes[level]||32)+8;
+  var result = new Uint8Array(u8.length + extra);
+  result.set(u8);
+  result.set(vmd5RandomBytes(extra), u8.length);
+  return result;
+}
+
+// --- 状态管理 ---
+var vmd5FileItems = [];
+var vmd5SelectedLevel = 'light';
+var vmd5CopyCount = 1;
+var vmd5IsProcessing = false;
+var vmd5ItemIdCounter = 0;
+var vmd5Initialized = false;
+
+function vmd5Esc(s) { var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+function vmd5FmtSize(b) { if(b<1024)return b+' B'; if(b<1048576)return(b/1024).toFixed(1)+' KB'; if(b<1073741824)return(b/1048576).toFixed(1)+' MB'; return(b/1073741824).toFixed(2)+' GB'; }
+function vmd5LvlName(l) { return l==='light'?'轻度转码':l==='standard'?'标准转码':'深度转码'; }
+function vmd5DetectMP4(ab) { if(ab.byteLength<8) return false; var h=new Uint8Array(ab,0,8); var ft=String.fromCharCode(h[4],h[5],h[6],h[7]); return ft==='ftyp'||ft==='moov'||ft==='mdat'; }
+
+function initVmd5Tab() {
+  if (vmd5Initialized) return;
+  vmd5Initialized = true;
+
+  var dropZone = document.getElementById('vmd5DropZone');
+  var fileInput = document.getElementById('vmd5FileInput');
+  var startBtn = document.getElementById('vmd5StartBtn');
+  var clearBtn = document.getElementById('vmd5ClearBtn');
+  var badge = document.getElementById('vmd5Badge');
+
+  // 后台预加载 FFmpeg
+  setTimeout(function() {
+    vmd5TryLoadFFmpeg(function(msg) { badge.textContent = msg; }).then(function(ff) {
+      if (ff) { badge.textContent = '转码模式 · FFmpeg引擎已就绪'; badge.className = 'inline-block mt-2 px-3 py-1 rounded-md text-xs font-semibold bg-green-50 text-green-600'; }
+      else {
+        var sabOk = typeof SharedArrayBuffer !== 'undefined';
+        badge.innerHTML = 'MD5改码模式 · 转码引擎不可用' + (sabOk ? ' <span id="vmd5Retry" style="cursor:pointer;text-decoration:underline;margin-left:4px">重试</span>' : ' <span style="opacity:.6">(需刷新启用引擎)</span>');
+        badge.className = 'inline-block mt-2 px-3 py-1 rounded-md text-xs font-semibold bg-yellow-50 text-yellow-600';
+        if (sabOk) {
+          document.getElementById('vmd5Retry').addEventListener('click', function() {
+            vmd5FFmpegLoadAttempted = false; vmd5FFmpegLoaded = false; vmd5FFmpegInstance = null;
+            badge.textContent = '正在重新加载引擎...'; badge.className = 'inline-block mt-2 px-3 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-500';
+            vmd5TryLoadFFmpeg(function(msg) { badge.textContent = msg; }).then(function(ff2) {
+              if (ff2) { badge.textContent = '转码模式 · FFmpeg引擎已就绪'; badge.className = 'inline-block mt-2 px-3 py-1 rounded-md text-xs font-semibold bg-green-50 text-green-600'; }
+              else { badge.innerHTML = 'MD5改码模式 · 转码引擎不可用 <span id="vmd5Retry" style="cursor:pointer;text-decoration:underline;margin-left:4px">重试</span>'; badge.className = 'inline-block mt-2 px-3 py-1 rounded-md text-xs font-semibold bg-yellow-50 text-yellow-600'; document.getElementById('vmd5Retry').addEventListener('click', arguments.callee); }
+            });
+          });
+        }
+      }
+    });
+  }, 500);
+
+  // 级别选择
+  document.querySelectorAll('.vmd5-level-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.vmd5-level-btn').forEach(function(b) {
+        b.classList.remove('active', 'border-indigo-500', 'bg-indigo-50');
+        b.classList.add('border-gray-200');
+        b.querySelector('.text-sm').classList.remove('text-indigo-500');
+        b.querySelector('.text-sm').classList.add('text-gray-700');
+      });
+      btn.classList.add('active', 'border-indigo-500', 'bg-indigo-50');
+      btn.classList.remove('border-gray-200');
+      btn.querySelector('.text-sm').classList.add('text-indigo-500');
+      btn.querySelector('.text-sm').classList.remove('text-gray-700');
+      vmd5SelectedLevel = btn.dataset.level;
+    });
+  });
+
+  // 份数控制
+  var copyCountEl = document.getElementById('vmd5CopyCount');
+  var copyHintEl = document.getElementById('vmd5CopyHint');
+  document.getElementById('vmd5CopyMinus').addEventListener('click', function() {
+    if (vmd5CopyCount > 1) { vmd5CopyCount--; copyCountEl.textContent = vmd5CopyCount; copyHintEl.textContent = vmd5CopyCount > 1 ? '将生成 ' + vmd5CopyCount + ' 份不同版本，每份 MD5 均不同' : '每份版本 MD5 均不同，可批量过审'; }
+  });
+  document.getElementById('vmd5CopyPlus').addEventListener('click', function() {
+    if (vmd5CopyCount < 9) { vmd5CopyCount++; copyCountEl.textContent = vmd5CopyCount; copyHintEl.textContent = vmd5CopyCount > 1 ? '将生成 ' + vmd5CopyCount + ' 份不同版本，每份 MD5 均不同' : '每份版本 MD5 均不同，可批量过审'; }
+  });
+
+  // 拖拽/点击上传
+  dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('border-indigo-400','bg-indigo-50/30'); });
+  dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('border-indigo-400','bg-indigo-50/30'); });
+  dropZone.addEventListener('drop', function(e) { e.preventDefault(); dropZone.classList.remove('border-indigo-400','bg-indigo-50/30'); if(e.dataTransfer.files.length) vmd5AddFiles(e.dataTransfer.files); });
+  dropZone.addEventListener('click', function() { fileInput.click(); });
+  fileInput.addEventListener('change', function(e) { if(e.target.files.length) vmd5AddFiles(e.target.files); fileInput.value=''; });
+
+  // 清空
+  clearBtn.addEventListener('click', function() {
+    vmd5FileItems = [];
+    vmd5RenderFileList();
+    vmd5UpdateStartBtn();
+    document.getElementById('vmd5ResultCard').classList.add('hidden');
+    document.getElementById('vmd5ResultList').innerHTML = '';
+    document.getElementById('vmd5ProgressWrap').classList.add('hidden');
+    document.getElementById('vmd5DownloadAllWrap').classList.add('hidden');
+  });
+
+  // 开始改码
+  startBtn.addEventListener('click', async function() {
+    var waitingItems = vmd5FileItems.filter(function(f) { return f.status === 'waiting'; });
+    if (waitingItems.length === 0) return;
+    vmd5IsProcessing = true;
+    vmd5UpdateStartBtn();
+    var resultCard = document.getElementById('vmd5ResultCard');
+    var resultList = document.getElementById('vmd5ResultList');
+    resultCard.classList.remove('hidden');
+    resultList.innerHTML = '';
+    var progressWrap = document.getElementById('vmd5ProgressWrap');
+    var progressBar = document.getElementById('vmd5ProgressBar');
+    var progressText = document.getElementById('vmd5ProgressText');
+    var isTranscodeMode = vmd5FFmpegLoaded && vmd5FFmpegInstance;
+    var totalCopies = waitingItems.length * vmd5CopyCount;
+    var completedCopies = 0;
+
+    for (var idx = 0; idx < waitingItems.length; idx++) {
+      var item = waitingItems[idx];
+      item.status = 'processing'; item.results = [];
+      vmd5RenderFileList();
+      progressWrap.classList.remove('hidden');
+      progressBar.style.width = '0%';
+
+      for (var ci = 0; ci < vmd5CopyCount; ci++) {
+        var copyNum = ci + 1;
+        try {
+          var blob, modeLabel;
+          if (isTranscodeMode) {
+            progressText.textContent = '正在转码: ' + item.file.name + (vmd5CopyCount > 1 ? '（第' + copyNum + '份）' : '');
+            try {
+              blob = await vmd5TranscodeVideo(item.file, vmd5SelectedLevel, function(msg) {
+                progressText.textContent = msg;
+                var m = msg.match(/(\d+)%/);
+                if (m) progressBar.style.width = Math.round(parseInt(m[1]) * 0.9) + '%';
+              }, item.videoInfo);
+              modeLabel = vmd5LvlName(vmd5SelectedLevel) + '（转码）';
+            } catch(transcodeErr) {
+              isTranscodeMode = false;
+              var ab = await item.file.arrayBuffer();
+              var isMP4 = vmd5DetectMP4(ab);
+              var modified = isMP4 ? vmd5ModifyMP4(ab, vmd5SelectedLevel) : vmd5ModifyGeneric(ab, vmd5SelectedLevel);
+              blob = new Blob([modified], {type: item.file.type || 'video/mp4'});
+              modeLabel = vmd5LvlName(vmd5SelectedLevel) + '（MD5改码·降级）';
+            }
+          } else {
+            progressText.textContent = '正在修改: ' + item.file.name + (vmd5CopyCount > 1 ? '（第' + copyNum + '份）' : '');
+            var ab = await item.file.arrayBuffer();
+            var isMP4 = vmd5DetectMP4(ab);
+            var modified = isMP4 ? vmd5ModifyMP4(ab, vmd5SelectedLevel) : vmd5ModifyGeneric(ab, vmd5SelectedLevel);
+            blob = new Blob([modified], {type: item.file.type || 'video/mp4'});
+            modeLabel = vmd5LvlName(vmd5SelectedLevel) + '（MD5改码）';
+          }
+          progressBar.style.width = '90%';
+          progressText.textContent = '正在计算新 MD5...';
+          var newMD5 = await vmd5ComputeMD5(new File([blob], 'o.mp4'));
+          progressBar.style.width = '100%';
+          item.results.push({blob: blob, newMD5: newMD5, modeLabel: modeLabel});
+
+          var card = document.createElement('div');
+          card.className = 'bg-gray-50 border border-gray-200 rounded-lg p-4 mb-2';
+          var fileNameLabel = vmd5CopyCount > 1 ? vmd5Esc(item.file.name) + ' · 第' + copyNum + '份' : vmd5Esc(item.file.name);
+          card.innerHTML =
+            '<div class="flex items-center justify-between gap-2"><span class="text-sm font-semibold flex-1 truncate">' + fileNameLabel + '</span><span class="text-xs px-2 py-0.5 rounded-full font-semibold bg-green-100 text-green-600 whitespace-nowrap">完成</span></div>' +
+            '<div class="mt-2 p-2 bg-black/5 rounded-lg text-xs space-y-1">' +
+              '<div class="flex items-start gap-2"><span class="text-gray-400 flex-shrink-0 min-w-[50px]">原 MD5</span><span class="font-mono text-red-400 break-all">' + item.md5 + '</span></div>' +
+              '<div class="flex items-center gap-2"><span class="text-gray-400 min-w-[50px]" style="visibility:hidden">-</span><span class="text-gray-400">↓</span></div>' +
+              '<div class="flex items-start gap-2"><span class="text-gray-400 flex-shrink-0 min-w-[50px]">新 MD5</span><span class="font-mono text-green-400 break-all">' + newMD5 + '</span></div>' +
+            '</div>' +
+            '<div class="text-xs text-gray-400 mt-2">策略: ' + modeLabel + ' | 输出: ' + vmd5FmtSize(blob.size) + '</div>';
+          var url = URL.createObjectURL(blob);
+          var dl = document.createElement('a');
+          dl.href = url; dl.className = 'inline-flex items-center gap-1 mt-2 px-5 py-2 text-xs font-semibold text-green-600 border border-green-200 rounded-lg bg-green-50 hover:bg-green-100 transition';
+          var ext = item.file.name.match(/(\.[^.]+)$/);
+          var baseName = item.file.name.replace(/(\.[^.]+)$/, '');
+          dl.download = vmd5CopyCount > 1 ? baseName + '_v' + copyNum + (ext ? ext[1] : '.mp4') : baseName + '_newmd5' + (ext ? ext[1] : '.mp4');
+          dl.innerHTML = '⬇ 下载';
+          card.appendChild(dl);
+          resultList.appendChild(card);
+        } catch(e) {
+          item.results.push(null);
+          var card = document.createElement('div');
+          card.className = 'bg-red-50 border border-red-200 rounded-lg p-4 mb-2';
+          var fileNameLabel = vmd5CopyCount > 1 ? vmd5Esc(item.file.name) + ' · 第' + copyNum + '份' : vmd5Esc(item.file.name);
+          card.innerHTML = '<div class="flex items-center justify-between gap-2"><span class="text-sm font-semibold flex-1 truncate">' + fileNameLabel + '</span><span class="text-xs px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-600 whitespace-nowrap">失败</span></div><div class="text-xs text-red-500 mt-2">' + vmd5Esc(e.message || '处理失败') + '</div>';
+          resultList.appendChild(card);
+        }
+        completedCopies++;
+        var overallPct = Math.round(completedCopies / totalCopies * 100);
+        progressText.textContent = '总进度 ' + overallPct + '%（' + completedCopies + '/' + totalCopies + '）';
+      }
+      var hasSuccess = item.results.some(function(r) { return r !== null; });
+      item.status = hasSuccess ? 'done' : 'error';
+      vmd5RenderFileList();
+    }
+    progressWrap.classList.add('hidden');
+    vmd5IsProcessing = false;
+    vmd5UpdateStartBtn();
+    var totalResults = 0;
+    for (var i = 0; i < vmd5FileItems.length; i++) {
+      if (vmd5FileItems[i].results) for (var j = 0; j < vmd5FileItems[i].results.length; j++) if (vmd5FileItems[i].results[j]) totalResults++;
+    }
+    if (totalResults > 1) document.getElementById('vmd5DownloadAllWrap').classList.remove('hidden');
+  });
+
+  // 下载全部
+  document.getElementById('vmd5DownloadAllBtn').addEventListener('click', function() {
+    for (var i = 0; i < vmd5FileItems.length; i++) {
+      var item = vmd5FileItems[i];
+      if (!item.results) continue;
+      for (var j = 0; j < item.results.length; j++) {
+        var r = item.results[j];
+        if (!r) continue;
+        var url = URL.createObjectURL(r.blob);
+        var a = document.createElement('a');
+        a.href = url;
+        var ext = item.file.name.match(/(\.[^.]+)$/);
+        var baseName = item.file.name.replace(/(\.[^.]+)$/, '');
+        a.download = item.results.length > 1 ? baseName + '_v' + (j+1) + (ext ? ext[1] : '.mp4') : baseName + '_newmd5' + (ext ? ext[1] : '.mp4');
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        (function(u) { setTimeout(function() { URL.revokeObjectURL(u); }, 10000); })(url);
+      }
+    }
+  });
+}
+
+async function vmd5AddFiles(files) {
+  for (var i = 0; i < files.length; i++) {
+    var file = files[i];
+    if (!file.type.startsWith('video/') && !/\.(mp4|avi|mkv|mov|wmv|flv|webm|m4v|mpg|mpeg|3gp|ts)$/i.test(file.name)) continue;
+    vmd5FileItems.push({id: ++vmd5ItemIdCounter, file: file, md5: '计算中...', videoInfo: null, status: 'waiting', results: [], error: null});
+  }
+  vmd5RenderFileList();
+  vmd5UpdateStartBtn();
+  for (var i = 0; i < vmd5FileItems.length; i++) {
+    var item = vmd5FileItems[i];
+    if (item.status !== 'waiting' || item.videoInfo) continue;
+    try {
+      var r = await Promise.all([vmd5ComputeMD5(item.file), vmd5ProbeVideo(item.file)]);
+      item.md5 = r[0]; item.videoInfo = r[1];
+      vmd5RenderFileList();
+    } catch(e) {
+      item.md5 = '计算失败'; item.videoInfo = {width:0,height:0,duration:0,hasAudio:false};
+      vmd5RenderFileList();
+    }
+  }
+}
+
+function vmd5RenderFileList() {
+  var el = document.getElementById('vmd5FileList');
+  if (vmd5FileItems.length === 0) { el.innerHTML = ''; return; }
+  var html = '<div class="text-xs text-gray-400 mb-2">已添加 ' + vmd5FileItems.length + ' 个文件</div>';
+  for (var i = 0; i < vmd5FileItems.length; i++) {
+    var item = vmd5FileItems[i];
+    var vi = item.videoInfo;
+    var metaParts = [vmd5FmtSize(item.file.size)];
+    if (vi && vi.width) metaParts.push(vi.width + 'x' + vi.height);
+    if (vi && vi.duration) metaParts.push(vi.duration.toFixed(1) + 's');
+    var statusHtml = '';
+    if (item.status === 'waiting') statusHtml = '<span class="text-xs px-1.5 py-0.5 rounded font-semibold bg-gray-100 text-gray-500 whitespace-nowrap">待处理</span>';
+    else if (item.status === 'processing') statusHtml = '<span class="text-xs px-1.5 py-0.5 rounded font-semibold bg-indigo-50 text-indigo-500 whitespace-nowrap">处理中</span>';
+    else if (item.status === 'done') statusHtml = '<span class="text-xs px-1.5 py-0.5 rounded font-semibold bg-green-100 text-green-600 whitespace-nowrap">完成</span>';
+    else if (item.status === 'error') statusHtml = '<span class="text-xs px-1.5 py-0.5 rounded font-semibold bg-red-100 text-red-500 whitespace-nowrap">失败</span>';
+    html += '<div class="flex items-center gap-3 bg-gray-50 rounded-lg p-3 mb-2">' +
+      '<div class="text-xl flex-shrink-0">🎬</div>' +
+      '<div class="flex-1 min-w-0">' +
+        '<div class="text-xs font-semibold truncate">' + vmd5Esc(item.file.name) + '</div>' +
+        '<div class="text-xs text-gray-400 mt-0.5">' + metaParts.join(' · ') + '</div>' +
+        '<div class="font-mono text-xs text-indigo-400 break-all mt-1 px-1.5 py-1 bg-indigo-50/30 rounded">' + vmd5Esc(item.md5) + '</div>' +
+      '</div>' +
+      statusHtml +
+      (item.status === 'waiting' ? '<button class="w-6 h-6 border-none bg-red-50 text-red-400 rounded-md cursor-pointer text-sm flex items-center justify-center flex-shrink-0 hover:bg-red-100" onclick="vmd5RemoveFile(' + item.id + ')">✕</button>' : '') +
+    '</div>';
+  }
+  el.innerHTML = html;
+}
+
+function vmd5RemoveFile(id) {
+  vmd5FileItems = vmd5FileItems.filter(function(f) { return f.id !== id; });
+  vmd5RenderFileList();
+  vmd5UpdateStartBtn();
+  if (vmd5FileItems.length === 0) {
+    document.getElementById('vmd5ResultCard').classList.add('hidden');
+    document.getElementById('vmd5ResultList').innerHTML = '';
+  }
+}
+
+function vmd5UpdateStartBtn() {
+  var btn = document.getElementById('vmd5StartBtn');
+  if (!btn) return;
+  var hasWaiting = vmd5FileItems.some(function(f) { return f.status === 'waiting'; });
+  btn.disabled = !hasWaiting || vmd5IsProcessing;
+  btn.textContent = vmd5IsProcessing ? '处理中...' : '开始改码';
+}
+
+// ===== 初始化 =====
+switchTab('material');
+renderMaterials();
+renderProjects();
+renderAnalytics();
+</script>
+
+<!-- AIGC: {"Label":"value1","ContentProducer":"001191110000802100433B11010001191110000802100433B11010","ProduceID":"e0817c82-3deb-4d81-97be-cdc18a128077","ReservedCode1":"72dafc97cd38b92e5f3d5cdfd0dfbbe6","ContentPropagator":"001191110000802100433B11010001191110000802100433B11010","PropagateID":"ec4a49e1-44c5-40fd-ac8c-474a64a176c5","ReservedCode2":"2734827274df537123a472bf4de01eb5"} -->
+</body>
+</html>
